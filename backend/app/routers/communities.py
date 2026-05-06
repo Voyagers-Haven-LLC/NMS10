@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from sqlalchemy import text
 
 from ..db import engine
+from ..notifications import notify_bot
 from ..schemas import CommunitySubmission
 from ..utils import slugify
 
@@ -57,4 +58,8 @@ def submit_community(payload: CommunitySubmission) -> dict:
                 "link_url": payload.link_url,
             },
         )
+    notify_bot(
+        "submission",
+        {"entity": "community", "id": unique, "name": payload.name, "language": payload.language},
+    )
     return {"id": unique, "approved": False}

@@ -104,6 +104,16 @@ class MeetupAdminUpsert(BaseModel):
 
 # --- socials ---
 
+class SocialUrlSubmission(BaseModel):
+    """Public submission of a social URL. The bot's /submit-social slash
+    command and the admin panel both POST to /api/submissions/socials.
+    Backend fetches Open Graph metadata server-side."""
+    url: str
+    submitter_discord_id: Optional[str] = None
+    submitter_name: Optional[str] = None
+    note: Optional[str] = None
+
+
 class SocialAdminUpsert(BaseModel):
     source: str = Field(pattern="^(twitter|bluesky|youtube|reddit|tiktok|discord)$")
     external_id: str

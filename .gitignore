@@ -44,3 +44,6 @@ logs/
 
 # OS
 desktop.ini
+
+# Bot config: keep the example, hide the real one
+/bot/config/servers.yaml

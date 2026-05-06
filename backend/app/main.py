@@ -1,5 +1,5 @@
 """FastAPI entry point. Wires the SQLite schema, admin bootstrap, seed,
-Steam refresher, static media mount, CORS, and routers."""
+scheduler (Steam + Bluesky), static media mounts, CORS, and routers."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, config, seed, steam
+from . import auth, config, scheduling, seed, steam
 from .db import init_db
 from .routers import (
     admin as admin_router,
@@ -32,16 +32,17 @@ async def lifespan(_app: FastAPI):
     auth.ensure_admin_user()
     seed.run_seed()
     config.MEDIA_DIR.mkdir(parents=True, exist_ok=True)
-    # Initial Steam fetch + scheduler
+    config.SOCIAL_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    config.SCRAPER_LOG_DIR.mkdir(parents=True, exist_ok=True)
     steam.refresh_now()
-    steam.start()
+    scheduling.start()
     try:
         yield
     finally:
-        steam.shutdown()
+        scheduling.shutdown()
 
 
-app = FastAPI(title="NMS10 API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="NMS10 API", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -51,10 +52,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static media (uploaded base images). StaticFiles checks the directory at
-# mount time, so make sure it exists before the app object is constructed.
+# Static media. StaticFiles checks the directories at mount time, so we make
+# sure they exist before the app object is constructed.
 config.MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+config.SOCIAL_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/media", StaticFiles(directory=str(config.MEDIA_DIR)), name="media")
+app.mount("/media-social", StaticFiles(directory=str(config.SOCIAL_MEDIA_DIR)), name="media-social")
 
 # Routers
 app.include_router(health_router.router, prefix="/api")

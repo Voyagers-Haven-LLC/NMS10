@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import text
 
 from ..db import engine
+from ..notifications import notify_bot
 from ..schemas import BaseSubmission
 from ..utils import (
     builder_initials,
@@ -148,4 +149,15 @@ def submit_base(payload: BaseSubmission) -> dict:
                 "submitter_discord_id": data.get("submitter_discord_id"),
             },
         )
+    notify_bot(
+        "submission",
+        {
+            "entity": "base",
+            "id": unique_id,
+            "title": data["title"],
+            "builder_name": data["builder_name"],
+            "platform": data.get("platform"),
+            "submitter_discord_id": data.get("submitter_discord_id"),
+        },
+    )
     return {"id": unique_id, "status": "pending"}

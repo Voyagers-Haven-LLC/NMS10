@@ -8,6 +8,7 @@ from fastapi import APIRouter, Query
 from sqlalchemy import text
 
 from ..db import engine
+from ..notifications import notify_bot
 from ..schemas import MeetupSubmission
 from ..utils import slugify
 
@@ -76,4 +77,14 @@ def submit_meetup(payload: MeetupSubmission) -> dict:
                 "contact_url": payload.contact_url,
             },
         )
+    notify_bot(
+        "submission",
+        {
+            "entity": "meetup",
+            "id": unique,
+            "title": payload.title,
+            "region": payload.region,
+            "location": payload.location,
+        },
+    )
     return {"id": unique, "approved": False}

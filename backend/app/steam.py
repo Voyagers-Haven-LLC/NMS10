@@ -1,9 +1,8 @@
 """Steam concurrent player count refresher.
 
-A background AsyncIOScheduler hits the public Steam Web API every
-STEAM_REFRESH_SECONDS and writes the result to the steam_cache table.
-The /api/steam-count endpoint just reads that row, so the API is decoupled
-from Steam's uptime."""
+Owns the actual fetch + cache write. Scheduling is owned by `scheduling.py`,
+which calls `refresh_now()` on a 60s interval. The /api/steam-count endpoint
+reads the cached row, so the API is decoupled from Steam's uptime."""
 
 from __future__ import annotations
 
@@ -13,15 +12,12 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 import json
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import text
 
 from . import config
 from .db import engine
 
 logger = logging.getLogger("nms10.steam")
-
-_scheduler: AsyncIOScheduler | None = None
 
 
 def _fetch_count() -> int | None:
@@ -67,26 +63,3 @@ def refresh_now() -> None:
     if count is None:
         return
     _upsert(count)
-
-
-def start() -> None:
-    global _scheduler
-    if _scheduler is not None:
-        return
-    _scheduler = AsyncIOScheduler()
-    _scheduler.add_job(
-        refresh_now,
-        "interval",
-        seconds=config.STEAM_REFRESH_SECONDS,
-        id="steam_refresh",
-        max_instances=1,
-        coalesce=True,
-    )
-    _scheduler.start()
-
-
-def shutdown() -> None:
-    global _scheduler
-    if _scheduler is not None:
-        _scheduler.shutdown(wait=False)
-        _scheduler = None

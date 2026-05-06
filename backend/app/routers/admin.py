@@ -14,6 +14,7 @@ from sqlalchemy import text
 
 from .. import auth, config
 from ..db import engine
+from ..notifications import notify_bot
 from ..schemas import (
     BaseAdminUpsert,
     CommunityAdminUpsert,
@@ -297,7 +298,19 @@ def admin_approve_base(base_id: str, _user: dict = Depends(auth.require_admin)) 
         )
         if result.rowcount == 0:
             raise HTTPException(status_code=404, detail="base not found")
-        return _load_base_admin(conn, base_id)
+        loaded = _load_base_admin(conn, base_id)
+    notify_bot(
+        "approved",
+        {
+            "entity": "base",
+            "id": loaded["id"],
+            "title": loaded["title"],
+            "builder_name": loaded["builder_name"],
+            "platform": loaded["platform"],
+            "url_path": f"/civs/bases/{loaded['id']}",
+        },
+    )
+    return loaded
 
 
 @router.post("/admin/bases/{base_id}/reject")
@@ -531,7 +544,12 @@ def admin_approve_community(cid: str, _user: dict = Depends(auth.require_admin))
             text("SELECT id, name, language, description, link_url, approved, added_at FROM communities WHERE id = :id"),
             {"id": cid},
         ).first()
-        return _community_row(row)
+        result_dict = _community_row(row)
+    notify_bot(
+        "approved",
+        {"entity": "community", "id": result_dict["id"], "name": result_dict["name"], "url_path": "/civs"},
+    )
+    return result_dict
 
 
 @router.post("/admin/communities/{cid}/reject")
@@ -670,7 +688,19 @@ def admin_approve_meetup(mid: str, _user: dict = Depends(auth.require_admin)) ->
         result = conn.execute(text("UPDATE meetups SET approved = 1 WHERE id = :id"), {"id": mid})
         if result.rowcount == 0:
             raise HTTPException(status_code=404, detail="meetup not found")
-        return _meetup_row(_select_meetup(conn, mid))
+        loaded = _meetup_row(_select_meetup(conn, mid))
+    notify_bot(
+        "approved",
+        {
+            "entity": "meetup",
+            "id": loaded["id"],
+            "title": loaded["title"],
+            "region": loaded["region"],
+            "location": loaded["location"],
+            "url_path": "/meetups",
+        },
+    )
+    return loaded
 
 
 @router.post("/admin/meetups/{mid}/reject")
@@ -811,3 +841,47 @@ def admin_delete_social(sid: int, _user: dict = Depends(auth.require_admin)) -> 
         if result.rowcount == 0:
             raise HTTPException(status_code=404, detail="social post not found")
     return {"ok": True}
+
+
+@router.post("/admin/socials/{sid}/approve")
+def admin_approve_social(sid: int, _user: dict = Depends(auth.require_admin)) -> dict:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("UPDATE social_posts SET hidden = 0 WHERE id = :id"), {"id": sid}
+        )
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="social post not found")
+        row = conn.execute(
+            text(
+                "SELECT id, source, external_id, author_name, author_handle, author_avatar_path, "
+                "       content, media_path, external_url, posted_at, fetched_at, featured, hidden "
+                "FROM social_posts WHERE id = :id"
+            ),
+            {"id": sid},
+        ).first()
+        loaded = _social_row(row)
+    notify_bot(
+        "approved",
+        {
+            "entity": "social",
+            "id": loaded["id"],
+            "source": loaded["source"],
+            "external_url": loaded["external_url"],
+            "author_name": loaded["author_name"],
+            "url_path": "/socials",
+        },
+    )
+    return loaded
+
+
+@router.post("/admin/socials/{sid}/reject")
+def admin_reject_social(sid: int, _user: dict = Depends(auth.require_admin)) -> dict:
+    """Reject = delete. Mirrors the existing admin_delete_social, but keeps a
+    parallel name to the other entities for the bot's command surface."""
+    return admin_delete_social(sid, _user)
+
+
+@router.get("/admin/scraper-status")
+def admin_scraper_status(_user: dict = Depends(auth.require_admin)) -> list[dict]:
+    from .. import scraper_status
+    return scraper_status.all_states()

@@ -1,0 +1,17 @@
+# Per-server channel routing for the NMS10 bot.
+#
+# Each entry is a Discord guild the bot is a member of. Channels can be `null`
+# to mute that notification type in that guild. The bot reloads this file
+# at startup and on /bot-reload (admin-only).
+
+servers:
+  - guild_id: "REPLACE_ME_NMS10_COLLAB_ID"
+    name: "NMS10 Collaborative"
+    submission_announce_channel: null      # set to a channel id to receive new-submission embeds
+    approval_announce_channel: null        # set to receive newly-approved embeds
+    scraper_announce_channel: null         # set to receive new-scraped-social embeds
+  - guild_id: "REPLACE_ME_HAVEN_GUILD_ID"
+    name: "Voyager's Haven"
+    submission_announce_channel: null
+    approval_announce_channel: null
+    scraper_announce_channel: null

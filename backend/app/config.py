@@ -12,7 +12,8 @@ logger = logging.getLogger("nms10.config")
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = BACKEND_DIR.parent
-DATA_DIR = REPO_ROOT / "data"
+# Allow Docker to override via NMS10_DATA_DIR=/data; otherwise sit next to the repo.
+DATA_DIR = Path(os.environ.get("NMS10_DATA_DIR", str(REPO_ROOT / "data"))).resolve()
 DB_PATH = DATA_DIR / "nms10.db"
 MEDIA_DIR = DATA_DIR / "base-media"
 JWT_SECRET_FILE = DATA_DIR / ".jwt-secret"
@@ -44,6 +45,23 @@ JWT_TTL_SECONDS = 24 * 60 * 60
 STEAM_APP_ID = 275850
 STEAM_API_KEY = os.environ.get("STEAM_API_KEY", "").strip() or None
 STEAM_REFRESH_SECONDS = 60
+
+# Discord bot webhook (loopback only by design)
+BOT_WEBHOOK_URL = os.environ.get(
+    "NMS10_BOT_WEBHOOK_URL", "http://127.0.0.1:9000/notify"
+).strip()
+
+# Scraper behavior
+SCRAPER_AUTO_PUBLISH = os.environ.get("NMS10_SCRAPER_AUTO_PUBLISH", "true").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+BLUESKY_REFRESH_SECONDS = 5 * 60        # 5 min healthy cadence
+BLUESKY_BACKOFF_SECONDS = 15 * 60       # 15 min after 3+ consecutive failures
+SCRAPER_LOG_DIR = DATA_DIR / "logs"
+SOCIAL_MEDIA_DIR = DATA_DIR / "social-media"
 
 
 def warn_defaults() -> None:

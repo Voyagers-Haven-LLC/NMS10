@@ -6,3 +6,5 @@ python-multipart
 bcrypt
 pyjwt
 apscheduler
+httpx
+beautifulsoup4

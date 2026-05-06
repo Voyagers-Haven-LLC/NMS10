@@ -1,0 +1,56 @@
+services:
+  nms10-backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    container_name: nms10-backend
+    restart: unless-stopped
+    environment:
+      NMS10_ADMIN_PASSWORD: ${NMS10_ADMIN_PASSWORD:-changeme}
+      NMS10_JWT_SECRET: ${NMS10_JWT_SECRET:-}
+      STEAM_API_KEY: ${STEAM_API_KEY:-}
+      NMS10_SCRAPER_AUTO_PUBLISH: ${NMS10_SCRAPER_AUTO_PUBLISH:-true}
+      # Backend talks to the bot by service name on the shared network.
+      NMS10_BOT_WEBHOOK_URL: http://nms10-bot:9000/notify
+    volumes:
+      - nms10-data:/data
+    ports:
+      - "8000:8000"
+    networks:
+      - nms10
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3).read()"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  nms10-bot:
+    build:
+      context: .
+      dockerfile: docker/bot.Dockerfile
+    container_name: nms10-bot
+    restart: unless-stopped
+    depends_on:
+      nms10-backend:
+        condition: service_healthy
+    environment:
+      NMS10_DISCORD_BOT_TOKEN: ${NMS10_DISCORD_BOT_TOKEN:-}
+      NMS10_BOT_ADMINS: ${NMS10_BOT_ADMINS:-}
+      NMS10_BACKEND_URL: http://nms10-backend:8000
+      # In compose, the webhook must bind 0.0.0.0 so the backend container
+      # can reach it. The port is NOT published to the host.
+      NMS10_BOT_WEBHOOK_HOST: 0.0.0.0
+      NMS10_BOT_WEBHOOK_PORT: "9000"
+      NMS10_BOT_SERVERS_FILE: /app/bot/config/servers.yaml
+    volumes:
+      - ./bot/config/servers.yaml:/app/bot/config/servers.yaml:ro
+    networks:
+      - nms10
+
+volumes:
+  nms10-data:
+
+networks:
+  nms10:
+    driver: bridge
