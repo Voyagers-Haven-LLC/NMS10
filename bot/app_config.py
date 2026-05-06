@@ -23,6 +23,7 @@ BOT_ADMINS = {
     if s.strip()
 }
 BACKEND_URL = os.environ.get("NMS10_BACKEND_URL", "http://localhost:8000").rstrip("/")
+SITE_URL = os.environ.get("NMS10_SITE_URL", "http://localhost:5173").rstrip("/")
 WEBHOOK_HOST = os.environ.get("NMS10_BOT_WEBHOOK_HOST", "127.0.0.1")
 WEBHOOK_PORT = int(os.environ.get("NMS10_BOT_WEBHOOK_PORT", "9000"))
 SERVERS_FILE = Path(

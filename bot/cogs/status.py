@@ -9,7 +9,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from .. import api_client, embeds
+from .. import api_client, app_config, embeds
 
 logger = logging.getLogger("nms10.bot.status")
 
@@ -80,11 +80,12 @@ class Status(commands.Cog):
             logger.exception("status failed: %s", exc)
             await interaction.followup.send(f"⚠️ Couldn't reach the backend: {exc}")
             return
+        embed = embeds.status_embed(data, site_url=app_config.SITE_URL)
         if data.get("errors"):
             note = "\n".join(f"⚠️ {e}" for e in data["errors"][:3])
-            await interaction.followup.send(content=note, embed=embeds.status_embed(data))
+            await interaction.followup.send(content=note, embed=embed)
         else:
-            await interaction.followup.send(embed=embeds.status_embed(data))
+            await interaction.followup.send(embed=embed)
 
 
 async def setup(bot: commands.Bot) -> None:

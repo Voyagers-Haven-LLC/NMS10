@@ -43,13 +43,19 @@ const FAQ_ITEMS = [
   },
 ]
 
+// Each entry is one download tile. `url` is optional — items without it
+// render as disabled placeholders (asset not yet ready).
 const DOWNLOADS = [
   { name: 'Anniversary Logo', desc: 'PNG · SVG · Transparent' },
   { name: 'Banners & Templates', desc: 'For Discord, social, profile use' },
   { name: 'In-Game Logo Tutorial', desc: 'By Dashboard Devil (English)' },
   { name: 'In-Game Logo Tutorial', desc: 'By la Checktitude (FR + EN subs)' },
   { name: 'Anniversary Music Playlist', desc: 'Community AI music tribute' },
-  { name: 'DreamingFox Card Generator', desc: 'Make your own Traveler card' },
+  {
+    name: 'DreamingFox Card Generator',
+    desc: 'Make your own Traveler card',
+    url: 'https://grs.dreamingfox.dev/card?s=26',
+  },
 ]
 
 export default function FAQ() {
@@ -81,12 +87,17 @@ export default function FAQ() {
         <h2 className="downloads-title">Downloads &amp; Assets</h2>
         <p className="downloads-meta">Community-made anniversary assets, free to use and share.</p>
         <div className="download-grid">
-          {DOWNLOADS.map((d, i) => (
-            <a className="download-item" key={i}>
-              <div className="download-name">{d.name}</div>
-              <div className="download-desc">{d.desc}</div>
-            </a>
-          ))}
+          {DOWNLOADS.map((d, i) => {
+            const props = d.url
+              ? { href: d.url, target: '_blank', rel: 'noreferrer' }
+              : { 'aria-disabled': true, style: { opacity: 0.5, cursor: 'default' } }
+            return (
+              <a className="download-item" key={i} {...props}>
+                <div className="download-name">{d.name}</div>
+                <div className="download-desc">{d.desc}{d.url ? ' →' : ''}</div>
+              </a>
+            )
+          })}
         </div>
       </div>
     </div>

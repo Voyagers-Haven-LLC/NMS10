@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
+import Splash from './components/Splash'
 import Expedition from './pages/Expedition'
 import CivsAndBases from './pages/CivsAndBases'
 import BaseDetail from './pages/BaseDetail'
@@ -29,6 +30,7 @@ function NotFound() {
 export default function App() {
   return (
     <Layout>
+      <Splash />
       <Routes>
         <Route path="/" element={<Expedition />} />
         <Route path="/civs" element={<CivsAndBases />} />

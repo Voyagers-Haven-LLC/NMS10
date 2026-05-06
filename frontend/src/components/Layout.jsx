@@ -12,9 +12,11 @@ const NAV_ITEMS = [
 ]
 
 function MiniCountdown() {
+  // Visibility is controlled entirely by the .header-countdown class,
+  // which v9 hides at <=768px. Don't override with inline display.
   const c = useCountdown()
   return (
-    <div className="header-countdown" style={{ display: 'flex' }}>
+    <div className="header-countdown">
       <span className="num">{c.reached ? '0' : c.days}</span>D
       <span className="num">{c.reached ? '00' : pad(c.hours)}</span>H
       <span className="num">{c.reached ? '00' : pad(c.minutes)}</span>M
@@ -50,6 +52,7 @@ function Footer() {
     <footer className="site-footer">
       <div className="container footer-row">
         <span>© 2026 Voyager's Haven · Built for the NMS10 collaborative</span>
+        <span>Banner art: Nerozii · Logo: Mr Sinister</span>
         <span>v0.1 · live build</span>
       </div>
     </footer>
@@ -72,13 +75,24 @@ export default function Layout({ children }) {
       <header className="site-header">
         <nav className="nav">
           <Link to="/" className="brand" style={{ textDecoration: 'none', color: 'inherit' }}>
-            <div className="brand-mark">10</div>
+            <img
+              src="/nms10-logo.png"
+              alt=""
+              className="brand-mark"
+              style={{
+                width: 32,
+                height: 32,
+                objectFit: 'contain',
+                background: 'transparent',
+                boxShadow: 'none',
+              }}
+            />
             <span>NMS / 10</span>
           </Link>
 
-          {showMini ? <MiniCountdown /> : <span style={{ flex: 1 }} />}
+          {showMini ? <MiniCountdown /> : <span className="header-spacer" />}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div className="nav-right">
             <SteamBadge />
             <ul className="nav-links">
               {NAV_ITEMS.map((item) => (

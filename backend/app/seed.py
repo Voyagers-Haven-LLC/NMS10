@@ -34,7 +34,6 @@ BASES = [
         "platform": "pc",
         "galaxy": "Euclid",
         "region": "Iousongola",
-        "class": "Class A",
         "portal_address": "10A8 · F8AC · 1023 · 0001",
         "tags": ["megabase", "floating", "monument"],
         "submitted_at": "2026-04-12T12:00:00Z",
@@ -58,7 +57,6 @@ BASES = [
         "platform": "ps",
         "galaxy": "Eissentam",
         "region": "Hesepar Adjunct",
-        "class": "Class B",
         "portal_address": "0FA8 · 1234 · ABCD · 0042",
         "tags": ["underwater", "settlement"],
         "submitted_at": "2026-03-30T12:00:00Z",
@@ -82,7 +80,6 @@ BASES = [
         "platform": "pc",
         "galaxy": "Hilbert",
         "region": "Ourgal Spur",
-        "class": "Class S",
         "portal_address": "10A8 · 0010 · 0010 · 0010",
         "tags": ["themed", "monument", "megabase"],
         "submitted_at": "2026-04-01T12:00:00Z",
@@ -105,7 +102,6 @@ BASES = [
         "platform": "xbox",
         "galaxy": "Calypso",
         "region": "Frozen Reach",
-        "class": "Class C",
         "portal_address": "20F8 · 7C0F · 0AB1 · 8821",
         "tags": ["settlement", "themed"],
         "submitted_at": "2026-03-22T12:00:00Z",
@@ -128,7 +124,6 @@ BASES = [
         "platform": "pc",
         "galaxy": "Euclid",
         "region": "Yileka Adjunct",
-        "class": "Class A",
         "portal_address": "10A8 · 1234 · 5678 · 9ABC",
         "tags": ["outpost"],
         "submitted_at": "2026-04-05T12:00:00Z",
@@ -151,7 +146,6 @@ BASES = [
         "platform": "ps",
         "galaxy": "Eissentam",
         "region": "Eyfert Khannate",
-        "class": "Class S",
         "portal_address": "0FA8 · ABCD · 1234 · 5678",
         "tags": ["megabase", "themed"],
         "submitted_at": "2026-04-08T12:00:00Z",
@@ -375,11 +369,11 @@ def run_seed() -> None:
             conn.execute(
                 text(
                     "INSERT INTO bases (id, title, builder_name, builder_affiliation, "
-                    "  description, builder_notes, platform, galaxy, region, class, "
+                    "  description, builder_notes, platform, galaxy, region, "
                     "  portal_address, tags, submitted_at, approved_at, status, "
                     "  view_count, star_count) "
                     "VALUES (:id, :title, :builder_name, :builder_affiliation, "
-                    "  :description, :builder_notes, :platform, :galaxy, :region, :class, "
+                    "  :description, :builder_notes, :platform, :galaxy, :region, "
                     "  :portal_address, :tags, :submitted_at, :approved_at, 'approved', "
                     "  :view_count, :star_count)"
                 ),
@@ -393,7 +387,6 @@ def run_seed() -> None:
                     "platform": b["platform"],
                     "galaxy": b["galaxy"],
                     "region": b["region"],
-                    "class": b["class"],
                     "portal_address": b["portal_address"],
                     "tags": join_tags(b["tags"]),
                     "submitted_at": b["submitted_at"],

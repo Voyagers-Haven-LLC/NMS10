@@ -115,7 +115,7 @@ def _load_base_admin(conn, base_id: str) -> dict:
     row = conn.execute(
         text(
             "SELECT id, title, builder_name, builder_affiliation, description, "
-            "       builder_notes, platform, galaxy, region, class AS class_, "
+            "       builder_notes, platform, galaxy, region, "
             "       portal_address, tags, hero_image_path, submitted_at, "
             "       approved_at, status, view_count, star_count "
             "FROM bases WHERE id = :id"
@@ -142,7 +142,6 @@ def _load_base_admin(conn, base_id: str) -> dict:
         "platform": row.platform,
         "galaxy": row.galaxy,
         "region": row.region,
-        "class": row.class_,
         "portal_address": row.portal_address,
         "tags": split_tags(row.tags),
         "hero_image_path": row.hero_image_path,
@@ -211,11 +210,11 @@ def admin_create_base(payload: BaseAdminUpsert, _user: dict = Depends(auth.requi
         conn.execute(
             text(
                 "INSERT INTO bases (id, title, builder_name, builder_affiliation, "
-                "  description, builder_notes, platform, galaxy, region, class, "
+                "  description, builder_notes, platform, galaxy, region, "
                 "  portal_address, tags, hero_image_path, status, approved_at, "
                 "  view_count, star_count) "
                 "VALUES (:id, :title, :builder_name, :builder_affiliation, :description, "
-                "  :builder_notes, :platform, :galaxy, :region, :class, :portal_address, "
+                "  :builder_notes, :platform, :galaxy, :region, :portal_address, "
                 "  :tags, :hero_image_path, :status, :approved_at, :view_count, :star_count)"
             ),
             {
@@ -228,7 +227,6 @@ def admin_create_base(payload: BaseAdminUpsert, _user: dict = Depends(auth.requi
                 "platform": data.get("platform"),
                 "galaxy": data.get("galaxy"),
                 "region": data.get("region"),
-                "class": data.get("class"),
                 "portal_address": data.get("portal_address"),
                 "tags": join_tags(data.get("tags")),
                 "hero_image_path": data.get("hero_image_path"),
@@ -259,7 +257,6 @@ def admin_update_base(
         "platform": "platform",
         "galaxy": "galaxy",
         "region": "region",
-        "class": "class",
         "portal_address": "portal_address",
         "hero_image_path": "hero_image_path",
         "status": "status",
@@ -883,5 +880,21 @@ def admin_reject_social(sid: int, _user: dict = Depends(auth.require_admin)) -> 
 
 @router.get("/admin/scraper-status")
 def admin_scraper_status(_user: dict = Depends(auth.require_admin)) -> list[dict]:
+    """Return one row per scraper from the scraper_status table."""
     from .. import scraper_status
     return scraper_status.all_states()
+
+
+@router.post("/admin/scrapers/{name}/run-once")
+def admin_run_scraper(name: str, _user: dict = Depends(auth.require_admin)) -> dict:
+    """Trigger one scraper synchronously, outside the regular schedule.
+    Returns the scraper's run() summary. Used by the 'Run Now' button in
+    the admin panel."""
+    from .. import scheduling
+    if name not in scheduling.known_scrapers():
+        raise HTTPException(status_code=404, detail=f"unknown scraper: {name}")
+    try:
+        result = scheduling.run_scraper_now(name)
+    except Exception as exc:  # noqa: BLE001 — surface the error to the admin UI
+        raise HTTPException(status_code=500, detail=f"scraper run failed: {exc}")
+    return result

@@ -175,11 +175,22 @@ export default function Expedition() {
           <div className="reward-icon">★</div>
           <h2 className="reward-title">Dreaming Traveller Card</h2>
           <p className="reward-desc">
-            Complete all eight milestones to claim your symbolic badge of participation in the 10th anniversary expedition.
+            Complete all eight milestones to claim your symbolic badge of participation in the 10th anniversary expedition. Generator by DreamingFox.
           </p>
-          <a href="#" className="reward-cta" onClick={(e) => e.preventDefault()}>
-            Claim your card →
-          </a>
+          {reward ? (
+            <a
+              href="https://grs.dreamingfox.dev/card?s=26"
+              target="_blank"
+              rel="noreferrer"
+              className="reward-cta"
+            >
+              Claim your card →
+            </a>
+          ) : (
+            <a href="#" className="reward-cta" onClick={(e) => e.preventDefault()}>
+              Claim your card →
+            </a>
+          )}
         </div>
       </div>
     </section>

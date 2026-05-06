@@ -22,13 +22,10 @@ class BaseSubmission(BaseModel):
     platform: Optional[str] = Field(default=None, pattern="^(pc|ps|xbox|switch)$")
     galaxy: Optional[str] = None
     region: Optional[str] = None
-    class_: Optional[str] = Field(default=None, alias="class")
     portal_address: Optional[str] = None
     tags: Optional[list[str]] = None
     submitter_email: Optional[str] = None
     submitter_discord_id: Optional[str] = None
-
-    model_config = {"populate_by_name": True}
 
 
 class BaseAdminUpsert(BaseModel):
@@ -43,7 +40,6 @@ class BaseAdminUpsert(BaseModel):
     platform: Optional[str] = Field(default=None, pattern="^(pc|ps|xbox|switch)$")
     galaxy: Optional[str] = None
     region: Optional[str] = None
-    class_: Optional[str] = Field(default=None, alias="class")
     portal_address: Optional[str] = None
     tags: Optional[list[str]] = None
     submitter_email: Optional[str] = None
@@ -52,8 +48,6 @@ class BaseAdminUpsert(BaseModel):
     view_count: Optional[int] = None
     hero_image_path: Optional[str] = None
     status: Optional[str] = Field(default=None, pattern="^(pending|approved|rejected)$")
-
-    model_config = {"populate_by_name": True}
 
 
 # --- communities ---

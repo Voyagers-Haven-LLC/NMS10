@@ -57,7 +57,7 @@ export default function BaseDetail() {
         <Link to="/civs" className="back-link">← Back to bases</Link>
         <h1 className="page-title">{base.title}</h1>
         <div className="page-meta">
-          {(PLATFORM_LABEL[base.platform] || base.platform || '?')} · {base.galaxy || '—'} · {base.class || '—'}
+          {(PLATFORM_LABEL[base.platform] || base.platform || '?')} · {base.galaxy || '—'} · {base.region || '—'}
         </div>
       </div>
 
@@ -108,7 +108,6 @@ export default function BaseDetail() {
             <h3>Location</h3>
             <div className="info-row"><span className="key">Galaxy</span><span className="val">{base.galaxy || '—'}</span></div>
             <div className="info-row"><span className="key">Region</span><span className="val">{base.region || '—'}</span></div>
-            <div className="info-row"><span className="key">Class</span><span className="val">{base.class || '—'}</span></div>
             <div className="info-row"><span className="key">Platform</span><span className="val">{PLATFORM_LABEL[base.platform] || base.platform || '—'}</span></div>
           </div>
           {base.portal_address && (

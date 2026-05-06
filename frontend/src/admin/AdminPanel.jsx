@@ -7,6 +7,7 @@ import BaseEditor from './BaseEditor'
 import CommunityEditor from './CommunityEditor'
 import MeetupEditor from './MeetupEditor'
 import SocialEditor from './SocialEditor'
+import ScrapersPanel from './ScrapersPanel'
 
 const TABS = [
   { id: 'queue', label: 'Queue' },
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'communities', label: 'Communities' },
   { id: 'meetups', label: 'Meetups' },
   { id: 'socials', label: 'Socials' },
+  { id: 'scrapers', label: 'Scrapers' },
 ]
 
 function ActionBtn({ kind = 'secondary', children, ...props }) {
@@ -58,7 +60,7 @@ function QueueTab({ refreshTick, onAfterAction }) {
       {queue.bases.length > 0 && (
         <div className="queue-group">
           <div className="queue-group-title">Pending bases ({queue.bases.length})</div>
-          <table className="admin-table">
+          <div className="admin-table-wrap"><table className="admin-table">
             <thead><tr><th>Title</th><th>Builder</th><th>Platform</th><th>Submitted</th><th>Actions</th></tr></thead>
             <tbody>
               {queue.bases.map((b) => (
@@ -74,13 +76,13 @@ function QueueTab({ refreshTick, onAfterAction }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
       {queue.communities.length > 0 && (
         <div className="queue-group">
           <div className="queue-group-title">Pending communities ({queue.communities.length})</div>
-          <table className="admin-table">
+          <div className="admin-table-wrap"><table className="admin-table">
             <thead><tr><th>Name</th><th>Language</th><th>Added</th><th>Actions</th></tr></thead>
             <tbody>
               {queue.communities.map((c) => (
@@ -95,13 +97,13 @@ function QueueTab({ refreshTick, onAfterAction }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
       {queue.meetups.length > 0 && (
         <div className="queue-group">
           <div className="queue-group-title">Pending meetups ({queue.meetups.length})</div>
-          <table className="admin-table">
+          <div className="admin-table-wrap"><table className="admin-table">
             <thead><tr><th>Title</th><th>Region</th><th>Location</th><th>Submitted</th><th>Actions</th></tr></thead>
             <tbody>
               {queue.meetups.map((m) => (
@@ -117,7 +119,7 @@ function QueueTab({ refreshTick, onAfterAction }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
     </>
@@ -157,7 +159,7 @@ function EntityTab({ kind, columns, render, EditorComponent, onChanged }) {
       {items.length === 0 ? (
         <div className="empty-state">No {kind} yet.</div>
       ) : (
-        <table className="admin-table">
+        <div className="admin-table-wrap"><table className="admin-table">
           <thead><tr>{columns.map((c) => (<th key={c.key}>{c.label}</th>))}<th>Actions</th></tr></thead>
           <tbody>
             {items.map((it) => (
@@ -170,7 +172,7 @@ function EntityTab({ kind, columns, render, EditorComponent, onChanged }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
 
       <Modal
@@ -314,6 +316,8 @@ export default function AdminPanel() {
           onChanged={triggerRefresh}
         />
       )}
+
+      {tab === 'scrapers' && <ScrapersPanel />}
     </div>
   )
 }

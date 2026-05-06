@@ -20,6 +20,12 @@ from .. import api_client
 logger = logging.getLogger("nms10.bot.submissions")
 
 
+def _parse_tags(raw: Optional[str]) -> list[str]:
+    if not raw:
+        return []
+    return [t.strip().lower() for t in re.split(r"[,\s]+", raw) if t.strip()]
+
+
 class BaseModal(discord.ui.Modal, title="Submit a base"):
     base_title = discord.ui.TextInput(label="Title", max_length=120, required=True)
     builder_name = discord.ui.TextInput(label="Builder name", max_length=80, required=True)
@@ -42,9 +48,18 @@ class BaseModal(discord.ui.Modal, title="Submit a base"):
         required=False,
     )
 
-    def __init__(self, platform: str):
+    def __init__(
+        self,
+        platform: str,
+        affiliation: Optional[str] = None,
+        region: Optional[str] = None,
+        tags: Optional[str] = None,
+    ):
         super().__init__()
         self.platform = platform
+        self.affiliation = affiliation
+        self.region = region
+        self.tags = _parse_tags(tags)
 
     async def on_submit(self, interaction: discord.Interaction):
         galaxy, portal = "", ""
@@ -61,6 +76,9 @@ class BaseModal(discord.ui.Modal, title="Submit a base"):
             "description": self.description.value or None,
             "builder_notes": self.notes.value or None,
             "submitter_discord_id": str(interaction.user.id),
+            "builder_affiliation": self.affiliation,
+            "region": self.region,
+            "tags": self.tags or None,
         }
         try:
             res = await api_client.submit_base(body)
@@ -124,9 +142,16 @@ class MeetupModal(discord.ui.Modal, title="Submit a meetup"):
         required=False,
     )
 
-    def __init__(self, region: str):
+    def __init__(
+        self,
+        region: str,
+        organizer: Optional[str] = None,
+        contact_url: Optional[str] = None,
+    ):
         super().__init__()
         self.region = region
+        self.organizer = organizer
+        self.contact_url = contact_url
 
     async def on_submit(self, interaction: discord.Interaction):
         lat, lng = None, None
@@ -149,6 +174,8 @@ class MeetupModal(discord.ui.Modal, title="Submit a meetup"):
             "longitude": lng,
             "starts_at": self.starts_at.value or None,
             "description": self.description.value or None,
+            "organizer_name": self.organizer,
+            "contact_url": self.contact_url,
         }
         try:
             res = await api_client.submit_meetup(body)
@@ -207,16 +234,34 @@ REGION_CHOICES = [
     app_commands.Choice(name="Asia-Pacific", value="asia-pacific"),
     app_commands.Choice(name="South America", value="south-america"),
 ]
-
-
 class Submissions(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
     @app_commands.command(name="submit-base", description="Submit a base for the NMS10 site")
     @app_commands.choices(platform=PLATFORM_CHOICES)
-    async def submit_base(self, interaction: discord.Interaction, platform: app_commands.Choice[str]):
-        await interaction.response.send_modal(BaseModal(platform=platform.value))
+    @app_commands.describe(
+        platform="Which platform you built on",
+        affiliation="Community / civilization the build is part of (optional)",
+        region="Region or system within the galaxy (optional)",
+        tags="Space- or comma-separated tags like 'megabase floating monument' (optional)",
+    )
+    async def submit_base(
+        self,
+        interaction: discord.Interaction,
+        platform: app_commands.Choice[str],
+        affiliation: Optional[str] = None,
+        region: Optional[str] = None,
+        tags: Optional[str] = None,
+    ):
+        await interaction.response.send_modal(
+            BaseModal(
+                platform=platform.value,
+                affiliation=affiliation,
+                region=region,
+                tags=tags,
+            )
+        )
 
     @app_commands.command(name="submit-community", description="Submit a community for the NMS10 site")
     async def submit_community(self, interaction: discord.Interaction):
@@ -224,8 +269,21 @@ class Submissions(commands.Cog):
 
     @app_commands.command(name="submit-meetup", description="Submit an IRL meetup for the NMS10 site")
     @app_commands.choices(region=REGION_CHOICES)
-    async def submit_meetup(self, interaction: discord.Interaction, region: app_commands.Choice[str]):
-        await interaction.response.send_modal(MeetupModal(region=region.value))
+    @app_commands.describe(
+        region="Which region of the world",
+        organizer="Name of the meetup organizer (optional)",
+        contact_url="Discord invite, signup form, etc. (optional)",
+    )
+    async def submit_meetup(
+        self,
+        interaction: discord.Interaction,
+        region: app_commands.Choice[str],
+        organizer: Optional[str] = None,
+        contact_url: Optional[str] = None,
+    ):
+        await interaction.response.send_modal(
+            MeetupModal(region=region.value, organizer=organizer, contact_url=contact_url)
+        )
 
     @app_commands.command(name="submit-social", description="Submit a social media link about NMS10")
     async def submit_social(self, interaction: discord.Interaction):

@@ -21,7 +21,6 @@ export default function BaseEditor({ baseId, onClose, onSaved }) {
         platform: 'pc',
         galaxy: '',
         region: '',
-        class: '',
         portal_address: '',
         tags: [],
         star_count: 0,
@@ -57,7 +56,6 @@ export default function BaseEditor({ baseId, onClose, onSaved }) {
       platform: form.platform || null,
       galaxy: form.galaxy || null,
       region: form.region || null,
-      class: form.class || null,
       portal_address: form.portal_address || null,
       tags: tagsArr,
       star_count: form.star_count,
@@ -169,10 +167,6 @@ export default function BaseEditor({ baseId, onClose, onSaved }) {
         <div className="form-field">
           <label>Region</label>
           <input value={form.region || ''} onChange={onChange('region')} />
-        </div>
-        <div className="form-field">
-          <label>Class</label>
-          <input value={form.class || ''} onChange={onChange('class')} />
         </div>
         <div className="form-field">
           <label>Portal address</label>

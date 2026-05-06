@@ -8,3 +8,6 @@ pyjwt
 apscheduler
 httpx
 beautifulsoup4
+Pillow
+Scweet
+instagrapi

@@ -131,20 +131,67 @@ cp bot/config/servers.example.yaml bot/config/servers.yaml
 ./bot/run-dev.sh --no-discord
 ```
 
-### Bluesky scraper
+### Social scrapers
 
-`backend/app/scrapers/bluesky.py` polls the public AT Protocol search
-endpoint every 5 minutes, deduplicating against `social_posts`.
+5 scrapers under `backend/app/scrapers/` — all share the same skeleton
+(dedupe on `(source, external_id)`, fire `notify_bot('new_social')` on new
+public posts, status tracked in the `scraper_status` DB table).
+
+| Scraper | Schedule | Auth | Status |
+|---|---|---|---|
+| Bluesky | 5 min | none (public AT Protocol) | active |
+| YouTube | 30 min | `YOUTUBE_API_KEY` | stub by default |
+| Reddit | 10 min | `REDDIT_CLIENT_ID` + `REDDIT_CLIENT_SECRET` | stub by default |
+| Twitter / X | 30 min | `TWITTER_AUTH_TOKEN` (cookie from a logged-in burner) | stub by default |
+| Instagram | 30 min | `INSTAGRAM_USERNAME` + `INSTAGRAM_PASSWORD` (burner) | stub by default |
+
+If any required env var is missing or set to `STUB`, that scraper logs a
+warning, marks `auth_state='stub-credentials'`, and skips. Real credentials
+flip it back to `auth_state='ok'` automatically on the next successful run.
+
+Each scraper has a CLI for ad-hoc backfill / verification:
 
 ```bash
-# Manual one-shot for verification
 cd backend
 .\.venv\Scripts\python.exe -m app.scrapers.bluesky --once --json
+.\.venv\Scripts\python.exe -m app.scrapers.youtube --once --json
+.\.venv\Scripts\python.exe -m app.scrapers.reddit --once --json
+.\.venv\Scripts\python.exe -m app.scrapers.twitter --once --json
+.\.venv\Scripts\python.exe -m app.scrapers.instagram --once --json
 ```
 
-Failures count up; 3+ consecutive failures auto-rebackoff to 15 min.
-State is queryable at `GET /api/admin/scraper-status` (auth required).
-Logs appended to `data/logs/scrapers.log`.
+Status: `GET /api/admin/scraper-status` (auth-gated) returns one row per
+scraper. Manual run: `POST /api/admin/scrapers/{name}/run-once`. The Admin
+panel has a "Scrapers" tab that surfaces both, with auto-refresh every 15s
+and a "Run Now" button per scraper.
+
+Failures count up; 3+ consecutive failures auto-reschedule to a slower
+interval. Logs are appended to `data/logs/scrapers.log`.
+
+#### Plugging in real credentials
+
+- **YouTube**: Google Cloud Console → enable YouTube Data API v3 →
+  Credentials → API key. Free quota is 10,000 units/day; our 30-min
+  schedule uses ~4,800/day (one search = 100 units).
+- **Reddit**: https://www.reddit.com/prefs/apps → "Create another app" →
+  pick "script" → fill out anything for redirect URI. Note the `client_id`
+  (under the app name) and `client_secret`. **Reddit requires a unique,
+  identifiable User-Agent**: set `REDDIT_USER_AGENT` to something like
+  `nms10-aggregator/1.0 by /u/<your-reddit-username>`.
+- **Twitter / X**: log into x.com from a clean browser profile (use a
+  burner account, not your main). DevTools → Application → Cookies → x.com
+  → copy the `auth_token` value. Set `TWITTER_AUTH_TOKEN` to that string.
+  When the burner expires/dies, the scraper marks itself `auth-failed`
+  and stops trying — refresh the token by repeating the steps with a
+  new (or freshly logged-in) burner. **Do not auto-retry**.
+- **Instagram**: create a fresh burner account on a personal device (NOT
+  the Pi — Instagram correlates IP + new account). Use it normally for
+  ~2 weeks before pointing the scraper at it. Then set
+  `INSTAGRAM_USERNAME` and `INSTAGRAM_PASSWORD`. The first run logs in
+  once and persists the session to `data/.instagram-session.json`; every
+  subsequent run reuses it. If you ever see `auth-failed` in the admin
+  panel, **do not retry from the scraper** — log in manually from the
+  burner's normal device first to clear any challenge.
 
 ## Environment variables
 
@@ -161,6 +208,13 @@ Logs appended to `data/logs/scrapers.log`.
 | `NMS10_BACKEND_URL` | `http://localhost:8000` | **Bot:** where to find the backend API. |
 | `NMS10_BOT_WEBHOOK_HOST` | `127.0.0.1` | **Bot:** webhook bind host. `0.0.0.0` inside Docker compose so the backend container can reach it. |
 | `NMS10_BOT_WEBHOOK_PORT` | `9000` | **Bot:** webhook listen port. |
+| `YOUTUBE_API_KEY` | `STUB` | YouTube Data API v3 key. |
+| `REDDIT_CLIENT_ID` | `STUB` | Reddit script-app client id. |
+| `REDDIT_CLIENT_SECRET` | `STUB` | Reddit script-app client secret. |
+| `REDDIT_USER_AGENT` | `nms10-aggregator/1.0 (by /u/Parker1920)` | Required by Reddit's API rules; identify yourself. |
+| `TWITTER_AUTH_TOKEN` | `STUB` | Cookie from a logged-in burner X account. |
+| `INSTAGRAM_USERNAME` | `STUB` | Burner Instagram username. |
+| `INSTAGRAM_PASSWORD` | `STUB` | Burner Instagram password. |
 
 The backend logs a warning at startup if `NMS10_ADMIN_PASSWORD` or
 `NMS10_JWT_SECRET` are unset.

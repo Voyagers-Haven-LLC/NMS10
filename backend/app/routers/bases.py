@@ -38,7 +38,6 @@ def _row_to_card(row) -> dict:
         "platform": row.platform,
         "galaxy": row.galaxy,
         "region": row.region,
-        "class": row.class_,  # SQL alias below
         "portal_address": row.portal_address,
         "tags": split_tags(row.tags),
         "hero_image_path": row.hero_image_path,
@@ -59,7 +58,7 @@ def list_bases(
 ) -> list[dict]:
     sql = (
         "SELECT id, title, builder_name, builder_affiliation, description, "
-        "       builder_notes, platform, galaxy, region, class AS class_, "
+        "       builder_notes, platform, galaxy, region, "
         "       portal_address, tags, hero_image_path, submitted_at, "
         "       approved_at, status, view_count, star_count "
         "FROM bases WHERE status = 'approved' ORDER BY approved_at DESC, submitted_at DESC"
@@ -81,7 +80,7 @@ def get_base(base_id: str) -> dict:
         row = conn.execute(
             text(
                 "SELECT id, title, builder_name, builder_affiliation, description, "
-                "       builder_notes, platform, galaxy, region, class AS class_, "
+                "       builder_notes, platform, galaxy, region, "
                 "       portal_address, tags, hero_image_path, submitted_at, "
                 "       approved_at, status, view_count, star_count "
                 "FROM bases WHERE id = :id AND status = 'approved'"
@@ -126,10 +125,10 @@ def submit_base(payload: BaseSubmission) -> dict:
         conn.execute(
             text(
                 "INSERT INTO bases (id, title, builder_name, builder_affiliation, "
-                "  description, builder_notes, platform, galaxy, region, class, "
+                "  description, builder_notes, platform, galaxy, region, "
                 "  portal_address, tags, status, submitter_email, submitter_discord_id) "
                 "VALUES (:id, :title, :builder_name, :builder_affiliation, :description, "
-                "  :builder_notes, :platform, :galaxy, :region, :class, :portal_address, "
+                "  :builder_notes, :platform, :galaxy, :region, :portal_address, "
                 "  :tags, 'pending', :submitter_email, :submitter_discord_id)"
             ),
             {
@@ -142,7 +141,6 @@ def submit_base(payload: BaseSubmission) -> dict:
                 "platform": data.get("platform"),
                 "galaxy": data.get("galaxy"),
                 "region": data.get("region"),
-                "class": data.get("class"),
                 "portal_address": data.get("portal_address"),
                 "tags": join_tags(data.get("tags")),
                 "submitter_email": data.get("submitter_email"),

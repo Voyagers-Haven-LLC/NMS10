@@ -38,7 +38,6 @@ CREATE TABLE IF NOT EXISTS bases (
   platform TEXT,
   galaxy TEXT,
   region TEXT,
-  class TEXT,
   portal_address TEXT,
   tags TEXT,
   hero_image_path TEXT,
@@ -114,6 +113,19 @@ CREATE TABLE IF NOT EXISTS steam_cache (
   fetched_at TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS scraper_status (
+  name TEXT PRIMARY KEY,
+  last_run TIMESTAMP,
+  last_success TIMESTAMP,
+  last_error TEXT,
+  consecutive_failures INTEGER DEFAULT 0,
+  auth_state TEXT DEFAULT 'ok',
+  last_inserted INTEGER DEFAULT 0,
+  runs INTEGER DEFAULT 0,
+  successes INTEGER DEFAULT 0,
+  failures INTEGER DEFAULT 0
+);
+
 CREATE INDEX IF NOT EXISTS idx_bases_status ON bases(status);
 CREATE INDEX IF NOT EXISTS idx_bases_platform ON bases(platform);
 CREATE INDEX IF NOT EXISTS idx_social_posts_source ON social_posts(source);
@@ -123,10 +135,11 @@ CREATE INDEX IF NOT EXISTS idx_meetups_region ON meetups(region);
 
 
 def init_db() -> None:
+    """Apply the schema. Every CREATE uses IF NOT EXISTS so this is safe to
+    run on every startup — new tables get added to existing DBs without
+    losing data, brand-new DBs get the full schema. Acts as a poor man's
+    migration system."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    needs_bootstrap = not DB_PATH.exists() or DB_PATH.stat().st_size == 0
-    if not needs_bootstrap:
-        return
     with engine.begin() as conn:
         for statement in SCHEMA_SQL.strip().split(";"):
             stmt = statement.strip()

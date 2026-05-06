@@ -3,6 +3,7 @@ gold/cyan palette."""
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Optional
 
 import discord
@@ -96,33 +97,114 @@ def new_social_embed(payload: dict) -> discord.Embed:
     return embed
 
 
-def status_embed(data: dict) -> discord.Embed:
+SOURCE_ICON = {
+    "twitter": "𝕏",
+    "bluesky": "☁",
+    "youtube": "▶",
+    "reddit": "↗",
+    "discord": "◆",
+    "tiktok": "♪",
+}
+
+
+def _word_truncate(text: str, limit: int) -> str:
+    """Trim at a word boundary so we don't end on 'univer' or 'everythi'."""
+    text = (text or "").replace("\n", " ").strip()
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit(" ", 1)[0].rstrip(",.;:—-")
+    return cut + "…"
+
+
+def _time_ago(iso: Optional[str]) -> str:
+    if not iso:
+        return ""
+    try:
+        # Accept both 'Z' and '+00:00' suffixes
+        ts = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    delta = (datetime.now(timezone.utc) - ts).total_seconds()
+    if delta < 60:
+        return "just now"
+    if delta < 3600:
+        return f"{int(delta // 60)}m ago"
+    if delta < 86400:
+        return f"{int(delta // 3600)}h ago"
+    if delta < 86400 * 30:
+        return f"{int(delta // 86400)}d ago"
+    return ts.strftime("%b %d")
+
+
+def status_embed(data: dict, site_url: str | None = None) -> discord.Embed:
+    cd = data["countdown"]
+
+    # Description doubles as the headline + steam stat. Markdown link to the
+    # site is in the title (clickable in Discord clients that support it).
+    if cd["reached"]:
+        headline = "🎂 **The anniversary has begun.** We're all here."
+    else:
+        headline = (
+            f"**{cd['days']}d {cd['hours']:02d}h {cd['minutes']:02d}m {cd['seconds']:02d}s** · "
+            f"target Aug 9 2026 · 18:00 UTC"
+        )
+
+    description_parts = [headline]
+    if data.get("steam_count") is not None:
+        description_parts.append(f"🛸 **{data['steam_count']:,}** Travelers in-game right now")
+    if site_url:
+        description_parts.append(f"[Open the site →]({site_url})")
+
     embed = discord.Embed(
-        title="🛸 NMS10 Status",
+        title="NMS10 · Expedition for the Dreamers",
+        url=site_url or None,
+        description="\n".join(description_parts),
         color=GOLD,
     )
-    cd = data["countdown"]
-    if cd["reached"]:
-        embed.description = "🎂 The anniversary has begun. We're all here."
-    else:
-        embed.description = (
-            f"**{cd['days']}d {cd['hours']:02d}h {cd['minutes']:02d}m {cd['seconds']:02d}s** "
-            f"to August 9 2026 18:00 UTC"
-        )
-    if data.get("steam_count") is not None:
-        embed.add_field(
-            name="In game now",
-            value=f"{data['steam_count']:,} Travelers (Steam)",
-            inline=False,
-        )
+
     counts = data["counts"]
-    embed.add_field(name="Bases", value=str(counts["bases"]), inline=True)
-    embed.add_field(name="Meetups", value=str(counts["meetups"]), inline=True)
-    embed.add_field(name="Communities", value=str(counts["communities"]), inline=True)
-    if data.get("recent_socials"):
-        lines = []
-        for s in data["recent_socials"]:
-            preview = (s.get("content") or "").replace("\n", " ")[:80]
-            lines.append(f"• `{s['source']}` {preview}")
-        embed.add_field(name="Latest signals", value="\n".join(lines) or "—", inline=False)
+    counts_line = (
+        f"🏛 **{counts['bases']}** bases  ·  "
+        f"📍 **{counts['meetups']}** meetups  ·  "
+        f"🪐 **{counts['communities']}** communities"
+    )
+    embed.add_field(name="​", value=counts_line, inline=False)
+
+    socials = data.get("recent_socials") or []
+    if socials:
+        blocks = []
+        for s in socials:
+            icon = SOURCE_ICON.get(s["source"], "•")
+            author = s.get("author_name") or s.get("author_handle") or "—"
+            handle = s.get("author_handle")
+            ago = _time_ago(s.get("posted_at") or s.get("fetched_at"))
+            url = s.get("external_url")
+
+            # Header: bold author with source icon, then handle (if different
+            # from name) and relative time, dimmed.
+            header = f"{icon} **{author}**"
+            meta_bits = []
+            if handle and handle != author:
+                meta_bits.append(handle)
+            if ago:
+                meta_bits.append(ago)
+            if meta_bits:
+                header += "  ·  " + "  ·  ".join(meta_bits)
+
+            # Body: blockquoted content. Discord renders > prefix even inside
+            # embed values. Linked through to the source if we have a URL.
+            preview = _word_truncate(s.get("content") or "", 140)
+            if url:
+                body = f"> [{preview}]({url})"
+            else:
+                body = f"> {preview}"
+
+            blocks.append(f"{header}\n{body}")
+
+        # Blank line between entries for visual separation
+        embed.add_field(name="Latest signals", value="\n\n".join(blocks), inline=False)
+
+    embed.set_footer(text="Built for the NMS10 collaborative · /submit-base · /submit-meetup · /submit-social")
     return embed

@@ -45,7 +45,7 @@ function BaseCard({ base }) {
         <p className="base-blurb">{base.blurb || base.description?.slice(0, 200)}</p>
         <div className="base-meta">
           {base.galaxy && <span>◇ {base.galaxy}</span>}
-          {base.class && <span>◐ {base.class}</span>}
+          {base.region && <span>◐ {base.region}</span>}
           <span>{base.stars_display}</span>
         </div>
       </div>
@@ -78,7 +78,6 @@ function SubmitBaseForm({ onSubmitted, onClose }) {
     platform: 'pc',
     galaxy: '',
     region: '',
-    class: '',
     portal_address: '',
     tags: '',
     submitter_email: '',
@@ -132,10 +131,6 @@ function SubmitBaseForm({ onSubmitted, onClose }) {
             <option value="xbox">Xbox</option>
             <option value="switch">Switch</option>
           </select>
-        </div>
-        <div className="form-field">
-          <label>Class</label>
-          <input value={form.class} onChange={onChange('class')} placeholder="Class A" />
         </div>
         <div className="form-field">
           <label>Galaxy</label>
