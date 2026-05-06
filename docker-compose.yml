@@ -53,10 +53,12 @@ services:
       nms10-backend:
         condition: service_healthy
     ports:
-      # Host port 8080 → container port 80. Nginx Proxy Manager forwards
-      # nms10.online (443/SSL) to localhost:8080. Change the host side if
-      # 8080 is taken; the internal 80 stays.
-      - "8080:80"
+      # Host port (configurable via NMS10_FRONTEND_HOST_PORT) → container 80.
+      # NPM forwards nms10.online (443/SSL) to localhost:<this-port>.
+      # Default 8090 to dodge common conflicts (8080 is used by lots of
+      # other dev tools and Haven services on a typical Pi). Override via
+      # .env if 8090 is also taken — the container side stays 80.
+      - "${NMS10_FRONTEND_HOST_PORT:-8090}:80"
     networks:
       - nms10
     healthcheck:
