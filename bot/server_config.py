@@ -41,12 +41,21 @@ def _coerce_channel(value) -> Optional[int]:
 def load() -> dict[str, GuildRoute]:
     global _state
     path = app_config.SERVERS_FILE
-    if not path.exists():
-        logger.warning("server config not found at %s — running with empty routes", path)
+    if not path.exists() or not path.is_file():
+        # Common gotcha: compose bind-mount of a non-existent host file
+        # silently creates an empty DIRECTORY at the container path. We
+        # treat that the same as "missing" — log clearly, don't crash.
+        why = "missing" if not path.exists() else "is a directory (likely a Docker bind-mount of a non-existent host file)"
+        logger.warning("server config %s at %s — running with empty routes", why, path)
         _state = {}
         return _state
-    with path.open("r", encoding="utf-8") as f:
-        raw = yaml.safe_load(f) or {}
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            raw = yaml.safe_load(f) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        logger.warning("server config unreadable at %s (%s) — running with empty routes", path, exc)
+        _state = {}
+        return _state
     new_state: dict[str, GuildRoute] = {}
     for entry in raw.get("servers", []) or []:
         gid = str(entry.get("guild_id", "")).strip()
