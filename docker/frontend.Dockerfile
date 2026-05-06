@@ -20,6 +20,10 @@ RUN npm run build
 # ----- runtime -----
 FROM nginx:1.27-alpine
 
+# nginx:1.27-alpine doesn't ship wget, so install curl for the healthcheck.
+# ~2 MB; trivial.
+RUN apk add --no-cache curl
+
 # Drop the default nginx config; ours handles SPA fallback + API proxy
 RUN rm /etc/nginx/conf.d/default.conf
 COPY docker/frontend.nginx.conf /etc/nginx/conf.d/default.conf
@@ -28,6 +32,7 @@ COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80
 
-# Nginx doesn't have a built-in healthcheck, so we use wget against itself.
+# Nginx doesn't have a built-in healthcheck. curl -f returns nonzero on
+# any HTTP error, including 5xx and connection refusal.
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
-    CMD wget -q -O- http://localhost/ >/dev/null || exit 1
+    CMD curl -fsS http://localhost/ -o /dev/null || exit 1
