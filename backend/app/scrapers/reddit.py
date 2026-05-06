@@ -1,18 +1,19 @@
 """Reddit #NMS10 scraper.
 
-Reddit OAuth client_credentials flow. Searches r/NoMansSkyTheGame and
-r/NMSCoordinateExchange for "#NMS10" posts. The token gets re-fetched on a
-401 (cheap, the API permits this) so we don't have to manage a separate
-refresh schedule.
+Two operational modes, picked at run time:
 
-Auth setup
-----------
-Register a "script" app at https://www.reddit.com/prefs/apps. You'll get a
-client_id (under the app name) and a client_secret. Set:
+1. **OAuth** (preferred). Uses client_credentials against oauth.reddit.com.
+   Higher rate limit (~600 req/min). Activated when both REDDIT_CLIENT_ID
+   and REDDIT_CLIENT_SECRET are set to non-STUB values.
 
-  REDDIT_CLIENT_ID
-  REDDIT_CLIENT_SECRET
-  REDDIT_USER_AGENT (Reddit *requires* a unique, identifiable UA)
+2. **Unauthenticated public JSON** (fallback). Hits
+   https://www.reddit.com/r/<sub>/search.json directly. No app registration
+   required. Rate-limited to ~60 req/min unauth, which is fine for our
+   10-min schedule (2 subs per cycle = 12 req/hr). Activated when either
+   OAuth env var is missing or set to STUB.
+
+Reddit *requires* a unique, identifiable User-Agent in either mode. Set
+REDDIT_USER_AGENT to something like "nms10-aggregator/1.0 by /u/<username>".
 
 Run modes
 ---------
@@ -27,6 +28,7 @@ import json
 import logging
 import os
 import sys
+import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -38,12 +40,23 @@ from . import _base
 
 NAME = "reddit"
 TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
-SEARCH_URL = "https://oauth.reddit.com/r/{sub}/search"
+OAUTH_SEARCH_URL = "https://oauth.reddit.com/r/{sub}/search"
+# old.reddit.com hosts the same search endpoint as www but routes through a
+# separate stack that's much more lenient on unauthenticated read traffic.
+PUBLIC_SEARCH_URL = "https://old.reddit.com/r/{sub}/search.json"
 SUBREDDITS = ("NoMansSkyTheGame", "NMSCoordinateExchange")
-QUERY = "#NMS10"
-PAGE_LIMIT = 50
+# Reddit doesn't treat # as a hashtag and the NMS subs largely use natural
+# language for the anniversary, so we search several phrases and union the
+# results. Dedupe is at the (source, external_id) level via insert_post().
+# One query, two subs = two requests per cycle. Reddit's unauth bot detection
+# is aggressive; the more requests we send the more likely they 403 us.
+# When OAuth is set up, you can safely add more queries here — OAuth gets
+# 600 req/min and is much harder to trip.
+QUERIES = ("NMS10",)
+PAGE_LIMIT = 25
+REQUEST_DELAY_SECONDS = 4.0
 DEFAULT_USER_AGENT = "nms10-aggregator/1.0 (by /u/Parker1920)"
-ENV_VARS = ("REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET")
+OAUTH_ENV_VARS = ("REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET")
 
 logger = logging.getLogger("nms10.scraper.reddit")
 
@@ -126,11 +139,12 @@ def _process_post(post: dict, hidden: bool) -> Optional[int]:
 
 
 def run() -> dict:
-    """One scrape cycle. Returns a summary dict; never raises."""
+    """One scrape cycle. Returns a summary dict; never raises.
+
+    Picks OAuth when both credentials env vars are set; otherwise hits the
+    public JSON endpoint unauthenticated."""
     _base.attach_file_logger(logger)
-    missing = _base.has_stub_credentials(ENV_VARS)
-    if missing is not None:
-        return _base.mark_stub_skip(NAME, missing, logger)
+    use_oauth = _base.has_stub_credentials(OAUTH_ENV_VARS) is None
 
     state = scraper_status.get(NAME)
     inserted = 0
@@ -138,65 +152,101 @@ def run() -> dict:
     fetched = 0
     hidden = not _base.auto_publish()
 
-    try:
-        token = _fetch_token()
-    except Exception as exc:  # noqa: BLE001
-        _base.mark_auth_failure(NAME, str(exc), logger)
-        return {"ok": False, "error": f"token fetch failed: {exc}", "inserted": 0}
-
-    headers = {
-        "Authorization": f"Bearer {token}",
+    headers: dict[str, str] = {
         "User-Agent": _user_agent(),
         "Accept": "application/json",
     }
 
+    if use_oauth:
+        try:
+            token = _fetch_token()
+        except Exception as exc:  # noqa: BLE001
+            _base.mark_auth_failure(NAME, str(exc), logger)
+            return {"ok": False, "error": f"token fetch failed: {exc}", "inserted": 0}
+        headers["Authorization"] = f"Bearer {token}"
+        search_url_template = OAUTH_SEARCH_URL
+    else:
+        # Unauthenticated mode — hit www.reddit.com/.../search.json directly.
+        # Don't use mark_stub_skip; this isn't a skip, we're actually scraping.
+        # If state was previously stub-credentials, leave it that way until the
+        # request actually succeeds (then we flip to ok).
+        search_url_template = PUBLIC_SEARCH_URL
+        logger.info("reddit running in unauthenticated mode (60 req/min limit)")
+
+    seen_in_run: set[str] = set()
+    request_count = 0
     try:
         with httpx.Client(timeout=10.0, headers=headers) as client:
             for sub in SUBREDDITS:
-                params = {
-                    "q": QUERY,
-                    "sort": "new",
-                    "limit": PAGE_LIMIT,
-                    "restrict_sr": "true",
-                }
-                resp = client.get(SEARCH_URL.format(sub=sub), params=params)
-                if resp.status_code == 401:
-                    _base.mark_auth_failure(NAME, f"HTTP 401 from r/{sub}", logger)
-                    return {"ok": False, "error": "401 unauthorized", "inserted": inserted}
-                if resp.status_code != 200:
-                    logger.warning("r/%s search HTTP %s: %s", sub, resp.status_code, resp.text[:200])
-                    continue
-                body = resp.json()
-                children = (body.get("data") or {}).get("children") or []
-                fetched += len(children)
-                for child in children:
-                    post = child.get("data") or {}
-                    try:
-                        new_id = _process_post(post, hidden=hidden)
-                    except Exception as exc:  # noqa: BLE001
-                        logger.warning("insert failed for %s: %s", post.get("name"), exc)
+                for query in QUERIES:
+                    if request_count > 0:
+                        time.sleep(REQUEST_DELAY_SECONDS)
+                    request_count += 1
+                    params = {
+                        "q": query,
+                        "sort": "new",
+                        "limit": PAGE_LIMIT,
+                        "restrict_sr": "true",
+                    }
+                    resp = client.get(search_url_template.format(sub=sub), params=params)
+                    if resp.status_code == 401:
+                        _base.mark_auth_failure(NAME, f"HTTP 401 from r/{sub}", logger)
+                        return {"ok": False, "error": "401 unauthorized", "inserted": inserted}
+                    if resp.status_code == 429 or (resp.status_code == 403 and not use_oauth):
+                        # 403 in unauth mode usually means rate-limit / bot detection.
+                        # In OAuth mode 403 is a real permission error and should
+                        # fall through to the generic warning branch below.
+                        state.record_failure(
+                            f"r/{sub} q={query!r} rate-limited (HTTP {resp.status_code}); back off"
+                        )
+                        logger.warning(
+                            "reddit r/%s q=%s rate-limited (HTTP %s); sleeping until next cycle",
+                            sub, query, resp.status_code,
+                        )
+                        return {"ok": False, "error": f"rate limited (HTTP {resp.status_code})", "inserted": inserted}
+                    if resp.status_code != 200:
+                        logger.warning("r/%s q=%s HTTP %s: %s", sub, query, resp.status_code, resp.text[:200])
                         continue
-                    if new_id is not None:
-                        inserted += 1
-                        if not hidden:
-                            if _base.fire_new_social_notification(
-                                post_id=new_id,
-                                source="reddit",
-                                author=f"u/{post.get('author') or 'unknown'}",
-                                content=post.get("title") or "",
-                                external_url=_post_url(post.get("permalink") or ""),
-                                logger=logger,
-                            ):
-                                notified += 1
-        if state.auth_state == "auth-failed":
+                    body = resp.json()
+                    children = (body.get("data") or {}).get("children") or []
+                    fetched += len(children)
+                    for child in children:
+                        post = child.get("data") or {}
+                        name = post.get("name") or ""
+                        # Dedupe within a single run so 4 queries × 2 subs don't
+                        # try to insert the same post 8 times.
+                        if name in seen_in_run:
+                            continue
+                        seen_in_run.add(name)
+                        try:
+                            new_id = _process_post(post, hidden=hidden)
+                        except Exception as exc:  # noqa: BLE001
+                            logger.warning("insert failed for %s: %s", name, exc)
+                            continue
+                        if new_id is not None:
+                            inserted += 1
+                            if not hidden:
+                                if _base.fire_new_social_notification(
+                                    post_id=new_id,
+                                    source="reddit",
+                                    author=f"u/{post.get('author') or 'unknown'}",
+                                    content=post.get("title") or "",
+                                    external_url=_post_url(post.get("permalink") or ""),
+                                    logger=logger,
+                                ):
+                                    notified += 1
+        # Successful run — recover state from any prior degraded state.
+        if state.auth_state in ("auth-failed", "stub-credentials"):
             state.set_auth_state("ok")
         state.record_success(inserted=inserted)
+        mode = "oauth" if use_oauth else "unauth"
         logger.info(
-            "reddit scrape OK fetched=%d inserted=%d notified=%d hidden=%s",
-            fetched, inserted, notified, hidden,
+            "reddit scrape OK mode=%s fetched=%d inserted=%d notified=%d hidden=%s",
+            mode, fetched, inserted, notified, hidden,
         )
         return {
             "ok": True,
+            "mode": mode,
             "fetched": fetched,
             "inserted": inserted,
             "notified": notified,
