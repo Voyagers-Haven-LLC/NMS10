@@ -35,7 +35,11 @@ from . import _base
 NAME = "youtube"
 SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
-QUERY = "#NMS10"
+# Pair the hashtag with the game name so unrelated #10 episodes / NBA 2K
+# MyTeam content doesn't match. YouTube's search ignores the # but the
+# combined query nudges relevance up. The client-side filter
+# (text_matches_nms10) is the real safety net.
+QUERY = '#NMS10 "No Man\'s Sky"'
 PAGE_LIMIT = 25
 ENV_VARS = ("YOUTUBE_API_KEY",)
 
@@ -48,13 +52,22 @@ def _process_video(item: dict, hidden: bool) -> Optional[int]:
         return None
     snippet = item.get("snippet") or {}
     channel_title = snippet.get("channelTitle") or "unknown"
+    title = snippet.get("title") or ""
+    description = snippet.get("description") or ""
 
+    # Relevance gate — YouTube search returns lots of #10/NBA 2K junk that
+    # the medium-mode filter rejects.
+    if not _base.text_matches_nms10(f"{title} {description}", mode="medium"):
+        return None
+
+    # Display content = title (short, readable). Description goes unused on
+    # the public card but it informed the filter above.
     new_id = _base.insert_post(
         source="youtube",
         external_id=video_id,
         author_name=channel_title,
         author_handle=f"@{channel_title}",
-        content=snippet.get("title") or "",
+        content=title,
         external_url=f"https://www.youtube.com/watch?v={video_id}",
         posted_at=snippet.get("publishedAt"),
         hidden=hidden,

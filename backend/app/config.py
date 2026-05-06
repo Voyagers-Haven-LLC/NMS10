@@ -12,6 +12,20 @@ logger = logging.getLogger("nms10.config")
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = BACKEND_DIR.parent
+
+# Auto-load backend/.env if present (matches the bot's behavior). The bot's
+# config does this; the backend used to skip it and only read process-env,
+# which surprised everyone setting YOUTUBE_API_KEY etc. in the .env file.
+# Process-env still wins over .env values, so Docker / shell-set vars override.
+try:
+    from dotenv import load_dotenv as _load_dotenv
+
+    _ENV_FILE = BACKEND_DIR / ".env"
+    if _ENV_FILE.exists():
+        _load_dotenv(_ENV_FILE, override=False)
+except ImportError:
+    # python-dotenv not installed — process-env only. Same behavior as before.
+    pass
 # Allow Docker to override via NMS10_DATA_DIR=/data; otherwise sit next to the repo.
 DATA_DIR = Path(os.environ.get("NMS10_DATA_DIR", str(REPO_ROOT / "data"))).resolve()
 DB_PATH = DATA_DIR / "nms10.db"
@@ -51,8 +65,12 @@ BOT_WEBHOOK_URL = os.environ.get(
     "NMS10_BOT_WEBHOOK_URL", "http://127.0.0.1:9000/notify"
 ).strip()
 
-# Scraper behavior
-SCRAPER_AUTO_PUBLISH = os.environ.get("NMS10_SCRAPER_AUTO_PUBLISH", "true").strip().lower() in (
+# Scraper behavior. Default FALSE: scraped posts go into the moderation queue
+# (hidden=true) so admins approve before they appear on the public socials feed.
+# YouTube's search in particular returns a lot of unrelated #10 content
+# (NBA 2K MyTeam, episode-numbered series, etc.) that we don't want auto-published.
+# Flip to true via env var only after you trust the filter / per-source precision.
+SCRAPER_AUTO_PUBLISH = os.environ.get("NMS10_SCRAPER_AUTO_PUBLISH", "false").strip().lower() in (
     "1",
     "true",
     "yes",

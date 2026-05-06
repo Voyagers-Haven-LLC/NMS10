@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Optional
@@ -195,3 +196,42 @@ def auto_publish() -> bool:
     """True = scraped posts are visible immediately. False = queued for
     moderation (hidden=true). Set by NMS10_SCRAPER_AUTO_PUBLISH env var."""
     return config.SCRAPER_AUTO_PUBLISH
+
+
+# --- Relevance filter --------------------------------------------------------
+#
+# Each platform's search API has different precision. Bluesky/Twitter/Instagram
+# treat hashtags as first-class so a search for #NMS10 returns posts that
+# actually use the tag. YouTube/Reddit treat the # as fluff and tokenize
+# loosely, so we get NBA 2K episode #10 videos and unrelated "10 year"
+# content. This filter is a defense-in-depth check that runs before insert_post
+# and drops posts that don't plausibly relate to the NMS 10th anniversary.
+
+# Match "No Man's Sky", "No Mans Sky", "No Man Sky", "nomansky", or "NMS" as a
+# standalone word.
+_NMS_PATTERN = re.compile(r"no\s*man'?s?\s*sky|nomansky|\bnms\b", re.IGNORECASE)
+_ANNIVERSARY_PATTERN = re.compile(
+    r"\b10[- ]?year|\bten[- ]?year|\b10th[- ]?anniv|anniversary|turns\s+(?:10|ten)\b",
+    re.IGNORECASE,
+)
+_NMS10_LITERAL = re.compile(r"#?nms10", re.IGNORECASE)
+
+
+def text_matches_nms10(text: str, mode: str = "strict") -> bool:
+    """Return True if `text` plausibly relates to the NMS 10th anniversary.
+
+    mode='strict' — require the literal string 'nms10' (with optional #).
+                    Use for platforms with real hashtag adoption (Bluesky,
+                    Twitter, Instagram). Cheap, high-precision.
+    mode='medium' — accept either 'nms10' OR (NMS reference + anniversary
+                    keyword). Use for platforms where users write natural
+                    language about the anniversary instead of tagging
+                    (YouTube, Reddit).
+    """
+    if not text:
+        return False
+    if _NMS10_LITERAL.search(text):
+        return True
+    if mode == "strict":
+        return False
+    return bool(_NMS_PATTERN.search(text)) and bool(_ANNIVERSARY_PATTERN.search(text))

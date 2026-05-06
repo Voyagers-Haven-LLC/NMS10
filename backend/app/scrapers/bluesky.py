@@ -82,6 +82,10 @@ def _process_post(post: dict, hidden: bool) -> Optional[int]:
         or datetime.now(timezone.utc).isoformat()
     )
 
+    # Relevance check — Bluesky's search is hashtag-aware so strict mode is fine.
+    if not _base.text_matches_nms10(text_content, mode="strict"):
+        return None
+
     new_id = _base.insert_post(
         source="bluesky",
         external_id=uri,

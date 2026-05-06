@@ -116,6 +116,9 @@ def _process_media(media, hidden: bool) -> Optional[int]:
     if thumb is not None:
         thumb = _safe_str(thumb)
 
+    if not _base.text_matches_nms10(caption, mode="strict"):
+        return None
+
     new_id = _base.insert_post(
         source="instagram",
         external_id=pk,

@@ -116,6 +116,9 @@ def _process_post(post: dict, hidden: bool) -> Optional[int]:
     selftext = post.get("selftext") or ""
     content_combined = title if not selftext else f"{title}\n\n{selftext}"
 
+    if not _base.text_matches_nms10(content_combined, mode="medium"):
+        return None
+
     new_id = _base.insert_post(
         source="reddit",
         external_id=name,

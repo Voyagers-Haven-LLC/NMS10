@@ -142,6 +142,9 @@ def _process_tweet(tweet: dict, hidden: bool) -> Optional[int]:
     created_at = _tweet_created_at(tweet)
     url = _build_url(handle, str(tid))
 
+    if not _base.text_matches_nms10(text_content, mode="strict"):
+        return None
+
     new_id = _base.insert_post(
         source="twitter",
         external_id=str(tid),
