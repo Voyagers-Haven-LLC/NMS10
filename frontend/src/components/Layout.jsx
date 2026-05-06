@@ -1,0 +1,113 @@
+import { NavLink, Link, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { api } from '../api/client'
+import { useCountdown, pad } from './useCountdown'
+
+const NAV_ITEMS = [
+  { to: '/', label: 'Expedition' },
+  { to: '/civs', label: 'Civs & Bases' },
+  { to: '/meetups', label: 'Meetups' },
+  { to: '/socials', label: 'Socials' },
+  { to: '/faq', label: 'FAQ' },
+]
+
+function MiniCountdown() {
+  const c = useCountdown()
+  return (
+    <div className="header-countdown" style={{ display: 'flex' }}>
+      <span className="num">{c.reached ? '0' : c.days}</span>D
+      <span className="num">{c.reached ? '00' : pad(c.hours)}</span>H
+      <span className="num">{c.reached ? '00' : pad(c.minutes)}</span>M
+    </div>
+  )
+}
+
+function SteamBadge() {
+  const [count, setCount] = useState(null)
+  useEffect(() => {
+    let alive = true
+    const fetchCount = () =>
+      api('/steam-count')
+        .then((d) => alive && setCount(d.player_count))
+        .catch(() => {})
+    fetchCount()
+    const id = setInterval(fetchCount, 30000)
+    return () => {
+      alive = false
+      clearInterval(id)
+    }
+  }, [])
+  if (count == null) return null
+  return (
+    <div className="steam-count" title="Live Steam concurrent players">
+      <strong>{count.toLocaleString()}</strong> in-game
+    </div>
+  )
+}
+
+function Footer() {
+  return (
+    <footer className="site-footer">
+      <div className="container footer-row">
+        <span>© 2026 Voyager's Haven · Built for the NMS10 collaborative</span>
+        <span>v0.1 · live build</span>
+      </div>
+    </footer>
+  )
+}
+
+export default function Layout({ children }) {
+  const { pathname } = useLocation()
+  const isExpedition = pathname === '/'
+  const isBaseDetail = pathname.startsWith('/civs/bases/')
+  const isAdmin = pathname.startsWith('/admin')
+
+  // Mini countdown shows on every page except expedition (matches v9 logic).
+  const showMini = !isExpedition && !isBaseDetail
+  // Nav highlight: base detail counts as civs (matches v9 logic).
+  const navCurrent = isBaseDetail ? '/civs' : pathname
+
+  return (
+    <>
+      <header className="site-header">
+        <nav className="nav">
+          <Link to="/" className="brand" style={{ textDecoration: 'none', color: 'inherit' }}>
+            <div className="brand-mark">10</div>
+            <span>NMS / 10</span>
+          </Link>
+
+          {showMini ? <MiniCountdown /> : <span style={{ flex: 1 }} />}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <SteamBadge />
+            <ul className="nav-links">
+              {NAV_ITEMS.map((item) => (
+                <li
+                  key={item.to}
+                  className={navCurrent === item.to ? 'current' : ''}
+                  style={{ listStyle: 'none' }}
+                >
+                  <NavLink
+                    to={item.to}
+                    style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+                  >
+                    {item.label}
+                  </NavLink>
+                </li>
+              ))}
+              {isAdmin && (
+                <li className="current" style={{ listStyle: 'none' }}>
+                  <Link to="/admin" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    Admin
+                  </Link>
+                </li>
+              )}
+            </ul>
+          </div>
+        </nav>
+      </header>
+      <main>{children}</main>
+      <Footer />
+    </>
+  )
+}

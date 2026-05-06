@@ -1,31 +1,66 @@
-"""FastAPI entry point for the NMS10 backend.
+"""FastAPI entry point. Wires the SQLite schema, admin bootstrap, seed,
+Steam refresher, static media mount, CORS, and routers."""
 
-For now this only exposes /api/health and bootstraps the SQLite schema on
-startup. Public read endpoints, submission endpoints, admin auth, scraper
-scheduling, and the Steam-count proxy land in later sessions per the roadmap.
-"""
+from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-from .db import DB_PATH, init_db
+from . import auth, config, seed, steam
+from .db import init_db
+from .routers import (
+    admin as admin_router,
+    bases as bases_router,
+    communities as communities_router,
+    health as health_router,
+    meetups as meetups_router,
+    socials as socials_router,
+    steam as steam_router,
+)
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    config.warn_defaults()
     init_db()
-    yield
+    auth.ensure_admin_user()
+    seed.run_seed()
+    config.MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    # Initial Steam fetch + scheduler
+    steam.refresh_now()
+    steam.start()
+    try:
+        yield
+    finally:
+        steam.shutdown()
 
 
-app = FastAPI(title="NMS10 API", version="0.0.1", lifespan=lifespan)
+app = FastAPI(title="NMS10 API", version="0.1.0", lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.get("/api/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+# Static media (uploaded base images). StaticFiles checks the directory at
+# mount time, so make sure it exists before the app object is constructed.
+config.MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/media", StaticFiles(directory=str(config.MEDIA_DIR)), name="media")
 
-
-@app.get("/api/_meta")
-def meta() -> dict[str, str]:
-    return {"db_path": str(DB_PATH), "version": app.version}
+# Routers
+app.include_router(health_router.router, prefix="/api")
+app.include_router(bases_router.router, prefix="/api")
+app.include_router(communities_router.router, prefix="/api")
+app.include_router(meetups_router.router, prefix="/api")
+app.include_router(socials_router.router, prefix="/api")
+app.include_router(steam_router.router, prefix="/api")
+app.include_router(admin_router.router, prefix="/api")
