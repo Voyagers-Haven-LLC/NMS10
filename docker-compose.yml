@@ -42,6 +42,30 @@ services:
       retries: 5
       start_period: 30s
 
+  nms10-frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    image: nms10-frontend:local
+    container_name: nms10-frontend
+    restart: unless-stopped
+    depends_on:
+      nms10-backend:
+        condition: service_healthy
+    ports:
+      # Host port 8080 → container port 80. Nginx Proxy Manager forwards
+      # nms10.online (443/SSL) to localhost:8080. Change the host side if
+      # 8080 is taken; the internal 80 stays.
+      - "8080:80"
+    networks:
+      - nms10
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost/"]
+      interval: 15s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
   nms10-bot:
     build:
       context: .

@@ -4,6 +4,7 @@ scheduler (Steam + Bluesky), static media mounts, CORS, and routers."""
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -69,9 +70,26 @@ def _rate_limit_handler(request, exc: RateLimitExceeded):
 
 app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
+# Origins that may call the API directly. Note: in the production compose
+# layout the frontend nginx proxies /api/* on the same hostname (nms10.online),
+# so the browser sees same-origin and CORS isn't actually invoked. The
+# allowlist below covers (a) local dev (Vite on 5173 hitting :8000 directly)
+# and (b) defensive coverage if anyone hits the API from a tool / second host.
+_cors_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://nms10.online",
+    "https://www.nms10.online",
+]
+# Allow extra origins via env var (comma-separated) without code changes —
+# useful if you spin up a staging subdomain or test-from-phone scenario.
+_extra = (os.environ.get("NMS10_EXTRA_CORS_ORIGINS", "") or "").strip()
+if _extra:
+    _cors_origins += [o.strip() for o in _extra.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
