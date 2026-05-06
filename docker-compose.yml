@@ -3,15 +3,32 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+    image: nms10-backend:local
     container_name: nms10-backend
     restart: unless-stopped
     environment:
+      # Auth
       NMS10_ADMIN_PASSWORD: ${NMS10_ADMIN_PASSWORD:-changeme}
       NMS10_JWT_SECRET: ${NMS10_JWT_SECRET:-}
-      STEAM_API_KEY: ${STEAM_API_KEY:-}
-      NMS10_SCRAPER_AUTO_PUBLISH: ${NMS10_SCRAPER_AUTO_PUBLISH:-true}
       # Backend talks to the bot by service name on the shared network.
       NMS10_BOT_WEBHOOK_URL: http://nms10-bot:9000/notify
+      # Override per-IP submission limit if you need to (default 5/hour).
+      NMS10_SUBMISSION_RATE_LIMIT: ${NMS10_SUBMISSION_RATE_LIMIT:-5/hour}
+      # Public Steam endpoint doesn't require a key, but you can set one.
+      STEAM_API_KEY: ${STEAM_API_KEY:-}
+      # Scraped posts queue for moderation by default. Flip to "true" only
+      # if you trust the per-source filters fully.
+      NMS10_SCRAPER_AUTO_PUBLISH: ${NMS10_SCRAPER_AUTO_PUBLISH:-false}
+      # Scraper credentials. Defaulting all to STUB so the app boots and
+      # marks each scraper auth_state="stub-credentials" until a real value
+      # gets set in your Pi-side .env file.
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-STUB}
+      REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-STUB}
+      REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-STUB}
+      REDDIT_USER_AGENT: ${REDDIT_USER_AGENT:-nms10-aggregator/1.0 (by /u/Parker1920)}
+      TWITTER_AUTH_TOKEN: ${TWITTER_AUTH_TOKEN:-STUB}
+      INSTAGRAM_USERNAME: ${INSTAGRAM_USERNAME:-STUB}
+      INSTAGRAM_PASSWORD: ${INSTAGRAM_PASSWORD:-STUB}
     volumes:
       - nms10-data:/data
     ports:
@@ -29,6 +46,7 @@ services:
     build:
       context: .
       dockerfile: docker/bot.Dockerfile
+    image: nms10-bot:local
     container_name: nms10-bot
     restart: unless-stopped
     depends_on:
@@ -38,12 +56,22 @@ services:
       NMS10_DISCORD_BOT_TOKEN: ${NMS10_DISCORD_BOT_TOKEN:-}
       NMS10_BOT_ADMINS: ${NMS10_BOT_ADMINS:-}
       NMS10_BACKEND_URL: http://nms10-backend:8000
-      # In compose, the webhook must bind 0.0.0.0 so the backend container
-      # can reach it. The port is NOT published to the host.
+      # Public site URL used in /nms10-status embed and approval links.
+      # Once you have the real domain, set this in .env.
+      NMS10_SITE_URL: ${NMS10_SITE_URL:-http://localhost:5173}
+      # Webhook bind. 0.0.0.0 inside the container so the backend container
+      # can reach it on the internal network. Port is NOT published to host.
       NMS10_BOT_WEBHOOK_HOST: 0.0.0.0
       NMS10_BOT_WEBHOOK_PORT: "9000"
       NMS10_BOT_SERVERS_FILE: /app/bot/config/servers.yaml
+      # Optional: explicitly set the rate-limit-bypass secret. Without this,
+      # the bot reads it from /data/.bot-internal-secret (same volume the
+      # backend writes to on first boot).
+      NMS10_BOT_INTERNAL_SECRET: ${NMS10_BOT_INTERNAL_SECRET:-}
     volumes:
+      # Read-only mount of the backend's data volume so the bot can read
+      # .bot-internal-secret. Bot doesn't write to this path.
+      - nms10-data:/data:ro
       - ./bot/config/servers.yaml:/app/bot/config/servers.yaml:ro
     networks:
       - nms10

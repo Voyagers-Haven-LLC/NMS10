@@ -1,0 +1,54 @@
+# Don't ship dev artifacts or runtime data into the image.
+# Build context speed + smaller images + zero risk of secrets leaking.
+
+# Python build artifacts
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/*.egg-info/
+
+# Virtual environments
+.venv/
+**/venv/
+**/env/
+
+# Node / Vite (we don't ship the frontend through compose yet, but if
+# someone adds it later this prevents dragging node_modules into the
+# Python images by accident)
+**/node_modules/
+**/dist/
+**/dist-ssr/
+
+# Runtime data — DB, scraped media, logs, generated secrets. NEVER ship.
+data/
+
+# Local env files. Real secrets get set via compose env / Pi-side .env.
+**/.env
+**/.env.*
+!**/.env.example
+
+# IDE / editor noise
+.idea/
+.vscode/
+*.swp
+
+# Git metadata — image doesn't need history
+.git/
+.gitignore
+.gitattributes
+
+# Runtime logs that shouldn't be in the image
+*.log
+*.err
+
+# Docs / planning content — not needed at runtime
+docs/
+README.md
+
+# OS / Windows
+desktop.ini
+Thumbs.db
+.DS_Store

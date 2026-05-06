@@ -144,11 +144,20 @@ def main() -> int:
         return 0
 
     if not app_config.DISCORD_TOKEN:
-        logger.error(
-            "NMS10_DISCORD_BOT_TOKEN is not set. Either export it (and a real "
-            "Discord app) or run with --no-discord for webhook-only mode."
+        # In containerized deploys (compose, Pi) we don't want a missing
+        # token to crash-loop the container. Fall back to webhook-only mode
+        # so the backend->bot pipeline still works for notifications and
+        # health checks. Discord login becomes opt-in: drop the token in
+        # the env file and restart the container.
+        logger.warning(
+            "NMS10_DISCORD_BOT_TOKEN is not set — running in webhook-only "
+            "mode. Set the env var and restart to enable Discord features."
         )
-        return 2
+        try:
+            asyncio.run(_run_webhook_only())
+        except KeyboardInterrupt:
+            return 0
+        return 0
     try:
         asyncio.run(_run())
     except KeyboardInterrupt:
