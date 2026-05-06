@@ -5,12 +5,14 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from sqlalchemy import text
 
+from .. import config
 from ..db import engine
 from ..notifications import notify_bot
 from ..og import fetch_og, stable_external_id
+from ..rate_limit import limiter
 from ..schemas import SocialUrlSubmission
 
 router = APIRouter()
@@ -52,7 +54,8 @@ def list_socials(source: Optional[str] = Query(default=None)) -> list[dict]:
 
 
 @router.post("/submissions/socials", status_code=201)
-def submit_social(payload: SocialUrlSubmission) -> dict:
+@limiter.limit(config.SUBMISSION_RATE_LIMIT)
+def submit_social(request: Request, payload: SocialUrlSubmission) -> dict:
     """Accept a pasted URL, fetch Open Graph, queue for moderation (hidden=true).
 
     Re-submitting the same URL returns the existing row instead of erroring,

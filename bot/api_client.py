@@ -21,9 +21,17 @@ class BackendError(Exception):
 
 async def _request(method: str, path: str, json: Optional[dict] = None) -> Any:
     url = f"{app_config.BACKEND_URL}{path}"
+    headers: dict[str, str] = {}
+    # Send the rate-limit bypass header on submission writes. The backend
+    # reads it from data/.bot-internal-secret if NMS10_BOT_INTERNAL_SECRET
+    # isn't explicitly set; in shared-host dev the bot picks up the same
+    # value from its env. Without this, a busy bot would hit the public
+    # 5/hr per-IP limit (since both processes run on the same host IP).
+    if app_config.BOT_INTERNAL_SECRET:
+        headers["X-NMS10-Bot-Secret"] = app_config.BOT_INTERNAL_SECRET
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
-            resp = await client.request(method, url, json=json)
+            resp = await client.request(method, url, json=json, headers=headers)
     except httpx.HTTPError as exc:
         logger.warning("backend request failed: %s", exc)
         raise BackendError(f"Backend unreachable: {exc}") from exc

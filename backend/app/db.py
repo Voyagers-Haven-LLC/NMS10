@@ -1,20 +1,35 @@
 """SQLite engine, session, and schema bootstrap.
 
-The DB lives at <repo-root>/data/nms10.db. Schema is applied on startup if the
-DB file doesn't yet exist (or, defensively, if the file exists but is empty).
+The DB lives at <repo-root>/data/nms10.db (or wherever NMS10_DATA_DIR points).
+Schema is applied on startup; CREATE TABLE IF NOT EXISTS so safe on every boot.
+
+Also exports backup helpers (snapshot via SQLite's online backup API) used by
+the daily scheduled job and admin destructive-action preflight hooks.
 """
 
 from __future__ import annotations
 
+import logging
+import os
+import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Optional
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
+logger = logging.getLogger("nms10.db")
+
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = BACKEND_DIR.parent
-DATA_DIR = REPO_ROOT / "data"
+# Honour the same NMS10_DATA_DIR override config.py uses, so Docker mounts
+# work and the backup script snapshots the same file the app reads from.
+DATA_DIR = Path(os.environ.get("NMS10_DATA_DIR", str(REPO_ROOT / "data"))).resolve()
 DB_PATH = DATA_DIR / "nms10.db"
+BACKUP_DIR = DATA_DIR / "backups"
+BACKUP_LOG = DATA_DIR / "logs" / "backup.log"
+BACKUP_RETAIN_DAYS = 30
 
 DATABASE_URL = f"sqlite:///{DB_PATH.as_posix()}"
 
@@ -153,3 +168,122 @@ def get_session():
         yield db
     finally:
         db.close()
+
+
+# ============================================================================
+# Backup + safety helpers
+# ============================================================================
+
+def _backup_logger() -> logging.Logger:
+    """Attach a file handler to /data/logs/backup.log the first time we
+    log something. Idempotent."""
+    BACKUP_LOG.parent.mkdir(parents=True, exist_ok=True)
+    if not any(
+        isinstance(h, logging.FileHandler) and Path(h.baseFilename) == BACKUP_LOG
+        for h in logger.handlers
+    ):
+        h = logging.FileHandler(BACKUP_LOG, encoding="utf-8")
+        h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        logger.addHandler(h)
+        logger.setLevel(logging.INFO)
+    return logger
+
+
+def backup_now(reason: Optional[str] = None) -> Path:
+    """Snapshot the live DB to data/backups/nms10-YYYYMMDD-HHMMSS.db using
+    SQLite's online backup API. Atomic, safe while the DB is in use.
+
+    `reason` is appended to the log line so we can grep "manual delete" etc.
+    Returns the path to the new backup file.
+
+    Raises FileNotFoundError if DB_PATH doesn't exist (nothing to back up).
+    """
+    log = _backup_logger()
+    if not DB_PATH.exists():
+        log.warning("backup skipped — DB does not exist at %s", DB_PATH)
+        raise FileNotFoundError(f"DB not found: {DB_PATH}")
+
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d-%H%M%S")
+    dest = BACKUP_DIR / f"nms10-{stamp}.db"
+    # If two calls land in the same second (preflight + scheduled), append a
+    # disambiguator rather than overwrite.
+    n = 1
+    while dest.exists():
+        dest = BACKUP_DIR / f"nms10-{stamp}-{n}.db"
+        n += 1
+
+    src = sqlite3.connect(str(DB_PATH))
+    try:
+        # Touch the destination first so it exists for the backup API.
+        dst = sqlite3.connect(str(dest))
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+    finally:
+        src.close()
+
+    size = dest.stat().st_size
+    suffix = f" reason={reason!r}" if reason else ""
+    log.info("backup OK -> %s (%d bytes)%s", dest.name, size, suffix)
+    return dest
+
+
+def prune_old_backups(retain_days: int = BACKUP_RETAIN_DAYS) -> int:
+    """Delete backups older than retain_days. Returns count deleted."""
+    log = _backup_logger()
+    if not BACKUP_DIR.exists():
+        return 0
+    cutoff = datetime.now(tz=timezone.utc) - timedelta(days=retain_days)
+    deleted = 0
+    for p in BACKUP_DIR.glob("nms10-*.db"):
+        try:
+            mtime = datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc)
+        except OSError:
+            continue
+        if mtime < cutoff:
+            try:
+                p.unlink()
+                log.info("pruned old backup %s (mtime=%s)", p.name, mtime.isoformat())
+                deleted += 1
+            except OSError as exc:
+                log.warning("failed to prune %s: %s", p.name, exc)
+    return deleted
+
+
+def list_backups() -> list[Path]:
+    if not BACKUP_DIR.exists():
+        return []
+    return sorted(BACKUP_DIR.glob("nms10-*.db"))
+
+
+def preflight_backup(reason: str) -> Optional[Path]:
+    """Snapshot the DB before any destructive operation. Returns the backup
+    path on success, None if the DB doesn't exist (nothing to snapshot).
+    Errors are logged but do NOT raise — we don't want to block a delete
+    because the disk is briefly full. The 30-day backup history at least
+    means we still have yesterday's snapshot.
+    """
+    try:
+        return backup_now(reason=f"preflight: {reason}")
+    except FileNotFoundError:
+        return None
+    except Exception as exc:  # noqa: BLE001 — never block the calling op
+        _backup_logger().error("preflight backup failed for %s: %s", reason, exc)
+        return None
+
+
+def refuse_to_wipe_unless_explicit(action: str) -> None:
+    """Tripwire — call this before any code path that would delete or
+    replace nms10.db. Raises RuntimeError unless NMS10_ALLOW_DB_WIPE=yes
+    is in the environment.
+
+    Currently no internal code path needs this (there are no destructive
+    helpers), but future contributors who think they're being clever
+    should hit this first. Leave it loud."""
+    if os.environ.get("NMS10_ALLOW_DB_WIPE") != "yes":
+        raise RuntimeError(
+            f"Refusing to wipe DB ({action}) without NMS10_ALLOW_DB_WIPE=yes "
+            f"opt-in. This is a tripwire — see docs/RESTORE.md before overriding."
+        )

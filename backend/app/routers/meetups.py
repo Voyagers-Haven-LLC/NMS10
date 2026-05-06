@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from sqlalchemy import text
 
+from .. import config
 from ..db import engine
 from ..notifications import notify_bot
+from ..rate_limit import limiter
 from ..schemas import MeetupSubmission
 from ..utils import slugify
 
@@ -49,7 +51,8 @@ def list_meetups(region: Optional[str] = Query(default=None)) -> list[dict]:
 
 
 @router.post("/submissions/meetups", status_code=201)
-def submit_meetup(payload: MeetupSubmission) -> dict:
+@limiter.limit(config.SUBMISSION_RATE_LIMIT)
+def submit_meetup(request: Request, payload: MeetupSubmission) -> dict:
     mid = slugify(payload.title)
     with engine.begin() as conn:
         suffix = 1

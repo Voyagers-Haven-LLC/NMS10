@@ -19,8 +19,9 @@ import logging
 from typing import Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 
-from . import config, scraper_status, steam
+from . import config, db, scraper_status, steam
 from .scrapers import bluesky, instagram, reddit, twitter, youtube
 
 logger = logging.getLogger("nms10.scheduling")
@@ -74,6 +75,23 @@ def known_scrapers() -> list[str]:
     return [m.NAME for m, *_ in _SCRAPER_REGISTRY]
 
 
+def _backup_job() -> None:
+    """Daily snapshot. Errors are logged inside backup_now and don't raise
+    out of here — the scheduler should keep running even if one snapshot
+    fails (e.g. disk briefly full)."""
+    try:
+        dest = db.backup_now(reason="scheduled-daily")
+        pruned = db.prune_old_backups()
+        logger.info(
+            "daily backup complete: %s (pruned %d old)",
+            dest.name, pruned,
+        )
+    except FileNotFoundError:
+        logger.warning("daily backup skipped — no DB file to back up")
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("daily backup failed: %s", exc)
+
+
 def start() -> None:
     global _scheduler
     if _scheduler is not None:
@@ -86,6 +104,16 @@ def start() -> None:
         "interval",
         seconds=config.STEAM_REFRESH_SECONDS,
         id="steam_refresh",
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # Daily DB backup at 03:00 local time. Cron-style so it lands at the
+    # same wall-clock time every day instead of drifting if uvicorn restarts.
+    _scheduler.add_job(
+        _backup_job,
+        CronTrigger(hour=3, minute=0),
+        id="daily_db_backup",
         max_instances=1,
         coalesce=True,
     )
@@ -108,10 +136,19 @@ def start() -> None:
 
     _scheduler.start()
     logger.info(
-        "scheduler started: steam=%ss, scrapers=%s",
+        "scheduler started: steam=%ss, daily-backup=03:00, scrapers=%s",
         config.STEAM_REFRESH_SECONDS,
         ", ".join(f"{m.NAME}={s}s" for m, _, s, _ in _SCRAPER_REGISTRY),
     )
+
+    # Run an initial backup at boot if there are no backups yet — gives us
+    # a known-good snapshot from minute one without waiting for 03:00.
+    if not db.list_backups():
+        try:
+            db.backup_now(reason="first-boot")
+            logger.info("initial backup snapshot created")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("initial backup failed: %s", exc)
 
 
 def shutdown() -> None:

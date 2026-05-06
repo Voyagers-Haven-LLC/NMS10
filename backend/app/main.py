@@ -9,9 +9,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from slowapi.errors import RateLimitExceeded
 
 from . import auth, config, scheduling, seed, steam
 from .db import init_db
+from .rate_limit import limiter
 from .routers import (
     admin as admin_router,
     bases as bases_router,
@@ -43,6 +45,29 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="NMS10 API", version="0.2.0", lifespan=lifespan)
+
+# Rate-limit support (per-IP, applied per-route via @limiter.limit on
+# the public submission endpoints). Bot bypasses via X-NMS10-Bot-Secret.
+# We don't add SlowAPIMiddleware — decorators alone enforce the limit, and
+# skipping the middleware means our custom 429 handler below isn't bypassed.
+app.state.limiter = limiter
+
+
+def _rate_limit_handler(request, exc: RateLimitExceeded):
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail": (
+                f"Too many submissions from this IP. Limit: {exc.detail}. "
+                "Try again later, or use the Discord bot's /submit-* commands."
+            ),
+        },
+        headers={"Retry-After": "60"},
+    )
+
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
 app.add_middleware(
     CORSMiddleware,

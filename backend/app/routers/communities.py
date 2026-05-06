@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from sqlalchemy import text
 
+from .. import config
 from ..db import engine
 from ..notifications import notify_bot
+from ..rate_limit import limiter
 from ..schemas import CommunitySubmission
 from ..utils import slugify
 
@@ -37,7 +39,8 @@ def list_communities() -> list[dict]:
 
 
 @router.post("/submissions/communities", status_code=201)
-def submit_community(payload: CommunitySubmission) -> dict:
+@limiter.limit(config.SUBMISSION_RATE_LIMIT)
+def submit_community(request: Request, payload: CommunitySubmission) -> dict:
     cid = slugify(payload.name)
     with engine.begin() as conn:
         suffix = 1

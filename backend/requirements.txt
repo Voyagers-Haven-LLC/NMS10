@@ -12,3 +12,4 @@ Pillow
 Scweet
 instagrapi
 python-dotenv
+slowapi

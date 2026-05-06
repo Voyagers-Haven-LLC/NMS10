@@ -81,6 +81,33 @@ BLUESKY_BACKOFF_SECONDS = 15 * 60       # 15 min after 3+ consecutive failures
 SCRAPER_LOG_DIR = DATA_DIR / "logs"
 SOCIAL_MEDIA_DIR = DATA_DIR / "social-media"
 
+# ---------------------------------------------------------------------------
+# Submission rate limiting
+# ---------------------------------------------------------------------------
+# Public IP-based limit on POST /api/submissions/*. The Discord bot bypasses
+# this by sending X-NMS10-Bot-Secret matching BOT_INTERNAL_SECRET — the bot
+# is a trusted client (gated by Discord's own auth + per-server config), so
+# IP-based limits would just penalize whoever's hosting the bot.
+SUBMISSION_RATE_LIMIT = os.environ.get("NMS10_SUBMISSION_RATE_LIMIT", "5/hour")
+
+
+def _load_or_create_bot_secret() -> str:
+    """Shared secret between backend and bot for rate-limit bypass.
+    Auto-generated and persisted on first boot so dev works zero-config."""
+    env = os.environ.get("NMS10_BOT_INTERNAL_SECRET", "").strip()
+    if env:
+        return env
+    secret_file = DATA_DIR / ".bot-internal-secret"
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if secret_file.exists():
+        return secret_file.read_text(encoding="utf-8").strip()
+    secret = secrets.token_urlsafe(32)
+    secret_file.write_text(secret, encoding="utf-8")
+    return secret
+
+
+BOT_INTERNAL_SECRET = _load_or_create_bot_secret()
+
 
 def warn_defaults() -> None:
     if ADMIN_PASSWORD_IS_DEFAULT:

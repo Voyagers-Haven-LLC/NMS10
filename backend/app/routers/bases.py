@@ -5,11 +5,13 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from sqlalchemy import text
 
+from .. import config
 from ..db import engine
 from ..notifications import notify_bot
+from ..rate_limit import limiter
 from ..schemas import BaseSubmission
 from ..utils import (
     builder_initials,
@@ -112,7 +114,8 @@ def get_base(base_id: str) -> dict:
 
 
 @router.post("/submissions/bases", status_code=201)
-def submit_base(payload: BaseSubmission) -> dict:
+@limiter.limit(config.SUBMISSION_RATE_LIMIT)
+def submit_base(request: Request, payload: BaseSubmission) -> dict:
     base_id = slugify(payload.title)
     # Make id unique if collision
     with engine.begin() as conn:

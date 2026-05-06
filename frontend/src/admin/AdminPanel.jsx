@@ -27,7 +27,7 @@ function ActionBtn({ kind = 'secondary', children, ...props }) {
 }
 
 function QueueTab({ refreshTick, onAfterAction }) {
-  const [queue, setQueue] = useState({ bases: [], communities: [], meetups: [] })
+  const [queue, setQueue] = useState({ bases: [], communities: [], meetups: [], socials: [] })
   const toast = useToast()
 
   const load = useCallback(() => {
@@ -49,7 +49,11 @@ function QueueTab({ refreshTick, onAfterAction }) {
     }
   }
 
-  const total = queue.bases.length + queue.communities.length + queue.meetups.length
+  const total =
+    queue.bases.length +
+    queue.communities.length +
+    queue.meetups.length +
+    (queue.socials?.length ?? 0)
 
   if (total === 0) {
     return <div className="empty-state">Queue is empty. Nothing pending. ✨</div>
@@ -115,6 +119,32 @@ function QueueTab({ refreshTick, onAfterAction }) {
                   <td className="actions">
                     <ActionBtn kind="primary" onClick={() => queueAction('meetups', m.id, 'approve')}>Approve</ActionBtn>
                     <ActionBtn kind="danger" onClick={() => queueAction('meetups', m.id, 'reject')}>Reject</ActionBtn>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div>
+        </div>
+      )}
+      {queue.socials?.length > 0 && (
+        <div className="queue-group">
+          <div className="queue-group-title">Pending social posts ({queue.socials.length})</div>
+          <div className="admin-table-wrap"><table className="admin-table">
+            <thead><tr><th>Source</th><th>Author</th><th>Content</th><th>Fetched</th><th>Actions</th></tr></thead>
+            <tbody>
+              {queue.socials.map((s) => (
+                <tr key={s.id}>
+                  <td><span className={`source-badge ${s.source}`}>{s.source}</span></td>
+                  <td>{s.author_name || s.author_handle || '—'}</td>
+                  <td style={{ maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={s.content || ''}>
+                    {s.external_url
+                      ? <a href={s.external_url} target="_blank" rel="noreferrer">{(s.content || '').slice(0, 80) || s.external_url}</a>
+                      : (s.content || '').slice(0, 80)}
+                  </td>
+                  <td>{s.fetched_at}</td>
+                  <td className="actions">
+                    <ActionBtn kind="primary" onClick={() => queueAction('socials', s.id, 'approve')}>Approve</ActionBtn>
+                    <ActionBtn kind="danger" onClick={() => queueAction('socials', s.id, 'reject')}>Reject</ActionBtn>
                   </td>
                 </tr>
               ))}
@@ -208,7 +238,7 @@ export default function AdminPanel() {
 
   const refreshQueueCount = useCallback(() => {
     apiAuth('/admin/queue')
-      .then((q) => setQueueCount(q.bases.length + q.communities.length + q.meetups.length))
+      .then((q) => setQueueCount(q.bases.length + q.communities.length + q.meetups.length + (q.socials?.length ?? 0)))
       .catch(() => {})
   }, [])
 

@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import text
 
 from .. import auth, config
-from ..db import engine
+from ..db import engine, preflight_backup
 from ..notifications import notify_bot
 from ..schemas import (
     BaseAdminUpsert,
@@ -56,6 +56,8 @@ def logout(_user: dict = Depends(auth.require_admin)) -> dict:
 
 @router.get("/admin/queue")
 def get_queue(_user: dict = Depends(auth.require_admin)) -> dict:
+    """Pending submissions across every entity type. Socials count as
+    pending when hidden=true (queued but not yet visible publicly)."""
     with engine.connect() as conn:
         bases = conn.execute(
             text(
@@ -73,6 +75,14 @@ def get_queue(_user: dict = Depends(auth.require_admin)) -> dict:
             text(
                 "SELECT id, title, region, location, submitted_at, approved "
                 "FROM meetups WHERE approved = 0 ORDER BY submitted_at DESC"
+            )
+        ).all()
+        socials = conn.execute(
+            text(
+                "SELECT id, source, external_id, author_name, author_handle, "
+                "       content, external_url, fetched_at "
+                "FROM social_posts WHERE hidden = 1 "
+                "ORDER BY COALESCE(posted_at, fetched_at) DESC"
             )
         ).all()
     return {
@@ -105,6 +115,19 @@ def get_queue(_user: dict = Depends(auth.require_admin)) -> dict:
                 "submitted_at": m.submitted_at,
             }
             for m in meetups
+        ],
+        "socials": [
+            {
+                "id": s.id,
+                "source": s.source,
+                "external_id": s.external_id,
+                "author_name": s.author_name,
+                "author_handle": s.author_handle,
+                "content": s.content,
+                "external_url": s.external_url,
+                "fetched_at": s.fetched_at,
+            }
+            for s in socials
         ],
     }
 
@@ -324,6 +347,7 @@ def admin_reject_base(base_id: str, _user: dict = Depends(auth.require_admin)) -
 
 @router.delete("/admin/bases/{base_id}")
 def admin_delete_base(base_id: str, _user: dict = Depends(auth.require_admin)) -> dict:
+    preflight_backup(f"manual delete: base {base_id}")
     media_dir = config.MEDIA_DIR / base_id
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM base_images WHERE base_id = :id"), {"id": base_id})
@@ -424,6 +448,7 @@ def admin_delete_gallery(
     image_id: int,
     _user: dict = Depends(auth.require_admin),
 ) -> dict:
+    preflight_backup(f"manual delete: gallery image {image_id} on base {base_id}")
     with engine.begin() as conn:
         row = conn.execute(
             text("SELECT image_path FROM base_images WHERE id = :iid AND base_id = :bid"),
@@ -556,6 +581,7 @@ def admin_reject_community(cid: str, _user: dict = Depends(auth.require_admin)) 
 
 @router.delete("/admin/communities/{cid}")
 def admin_delete_community(cid: str, _user: dict = Depends(auth.require_admin)) -> dict:
+    preflight_backup(f"manual delete: community {cid}")
     with engine.begin() as conn:
         result = conn.execute(text("DELETE FROM communities WHERE id = :id"), {"id": cid})
         if result.rowcount == 0:
@@ -707,6 +733,7 @@ def admin_reject_meetup(mid: str, _user: dict = Depends(auth.require_admin)) -> 
 
 @router.delete("/admin/meetups/{mid}")
 def admin_delete_meetup(mid: str, _user: dict = Depends(auth.require_admin)) -> dict:
+    preflight_backup(f"manual delete: meetup {mid}")
     with engine.begin() as conn:
         result = conn.execute(text("DELETE FROM meetups WHERE id = :id"), {"id": mid})
         if result.rowcount == 0:
@@ -833,6 +860,7 @@ def admin_update_social(
 
 @router.delete("/admin/socials/{sid}")
 def admin_delete_social(sid: int, _user: dict = Depends(auth.require_admin)) -> dict:
+    preflight_backup(f"manual delete: social {sid}")
     with engine.begin() as conn:
         result = conn.execute(text("DELETE FROM social_posts WHERE id = :id"), {"id": sid})
         if result.rowcount == 0:
