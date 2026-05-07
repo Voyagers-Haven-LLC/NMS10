@@ -3,16 +3,18 @@ import { useCountdown, pad } from '../components/useCountdown'
 import { useIdentity } from '../context/IdentityContext'
 import IdentityModal from '../components/IdentityModal'
 
-// NMS10 brand defaults for the DreamingFox card generator.
+// NMS10 brand color defaults for the DreamingFox card generator.
 //   cc=10  → corner color #851717 (deep red, matches the hex 10 logo)
 //   mc=19  → main color #000000 (black, the badge background)
-//   s=26   → sigil index DreamingFox confirmed for the NMS10 card
-// If you want a different default palette, change here only — the rest
-// of the URL is identity-driven.
+// Sigil (`s=`) is now identity-driven — users pick from SIGILS in the
+// modal. DreamingFox doesn't have an NMS10 sigil yet; the dropdown
+// defaults to "None" (s=0) and includes The Voyager's Haven (s=28),
+// Galactic Hub (s=3), and 34 other community emblems.
+//
 // TODO: revisit cc/mc once Mr Sinister + DreamingFox confirm a final
 // canonical color combo for the anniversary card. Today's pick is the
 // closest to the official banner palette in DreamingFox's existing options.
-const CARD_BRAND_PARAMS = { cc: '10', mc: '19', s: '26' }
+const CARD_BRAND_PARAMS = { cc: '10', mc: '19' }
 
 function buildCardUrl(identity) {
   const params = new URLSearchParams()
@@ -22,6 +24,7 @@ function buildCardUrl(identity) {
     params.set('r', String(identity.race))
     if (identity.affiliation) params.set('a', identity.affiliation)
     params.set('p', String(identity.platform))
+    params.set('s', String(identity.sigil ?? 0))
   }
   return `https://grs.dreamingfox.dev/card?${params.toString()}`
 }

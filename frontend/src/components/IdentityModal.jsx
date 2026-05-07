@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import Modal from './Modal'
 import { useIdentity } from '../context/IdentityContext'
 import { useToast } from '../context/ToastContext'
-import { RACES, PLATFORMS, blankDraft } from '../identity/identityStorage'
+import { RACES, PLATFORMS, SIGILS, blankDraft } from '../identity/identityStorage'
 
 export default function IdentityModal({ open, onClose }) {
   const { identity, setIdentity } = useIdentity()
@@ -73,6 +73,15 @@ export default function IdentityModal({ open, onClose }) {
             <select value={draft.platform} onChange={onChange('platform')}>
               {PLATFORMS.map((p, i) => (
                 <option key={p} value={i}>{p}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-field span-2">
+            <label>Sigil</label>
+            <select value={draft.sigil} onChange={onChange('sigil')}>
+              {SIGILS.map((s, i) => (
+                <option key={s} value={i}>{s}</option>
               ))}
             </select>
           </div>
