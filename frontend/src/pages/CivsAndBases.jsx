@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import Modal from '../components/Modal'
 import { useToast } from '../context/ToastContext'
+import { useIdentity } from '../context/IdentityContext'
+import { PLATFORMS as IDENTITY_PLATFORMS } from '../identity/identityStorage'
 
 const PLATFORMS = [
   { value: 'all', label: 'All' },
@@ -68,21 +70,37 @@ function CommunityCard({ c }) {
   )
 }
 
+// Map identity's platform index → backend's platform string.
+// Identity uses: ["Steam", "GOG", "Xbox", "Switch", "PlayStation"]
+// Backend expects: pc | xbox | switch | ps
+function platformFromIdentity(identityPlatform) {
+  if (typeof identityPlatform !== 'number') return null
+  const label = IDENTITY_PLATFORMS[identityPlatform]
+  if (!label) return null
+  if (label === 'Steam' || label === 'GOG') return 'pc'
+  if (label === 'Xbox') return 'xbox'
+  if (label === 'Switch') return 'switch'
+  if (label === 'PlayStation') return 'ps'
+  return null
+}
+
 function SubmitBaseForm({ onSubmitted, onClose }) {
-  const [form, setForm] = useState({
+  const { identity } = useIdentity()
+  const prefillPlatform = platformFromIdentity(identity?.platform)
+  const [form, setForm] = useState(() => ({
     title: '',
-    builder_name: '',
-    builder_affiliation: '',
+    builder_name: identity?.name || '',
+    builder_affiliation: identity?.affiliation || '',
     description: '',
     builder_notes: '',
-    platform: 'pc',
+    platform: prefillPlatform || 'pc',
     galaxy: '',
     region: '',
     portal_address: '',
     tags: '',
     submitter_email: '',
     submitter_discord_id: '',
-  })
+  }))
   const [busy, setBusy] = useState(false)
   const toast = useToast()
 

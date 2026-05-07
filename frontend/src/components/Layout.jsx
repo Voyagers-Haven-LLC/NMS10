@@ -2,6 +2,8 @@ import { NavLink, Link, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useCountdown, pad } from './useCountdown'
+import { useIdentity } from '../context/IdentityContext'
+import IdentityModal from './IdentityModal'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Expedition' },
@@ -47,6 +49,37 @@ function SteamBadge() {
   )
 }
 
+function IdentityBadge({ onOpen }) {
+  // Shows in the header. Two states: empty (subdued cyan invitation) and
+  // filled (gold-tinted name pill). Click opens the modal in either state.
+  const { identity } = useIdentity()
+  if (!identity) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        className="identity-badge identity-badge-empty"
+        aria-label="Set your Traveler identity"
+      >
+        <span className="identity-icon">◇</span>
+        <span className="identity-label">Set your Traveler identity</span>
+      </button>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="identity-badge identity-badge-set"
+      aria-label={`Edit identity (currently ${identity.name})`}
+    >
+      <span className="identity-icon">👤</span>
+      <span className="identity-label">{identity.name}</span>
+      <span className="identity-caret">▾</span>
+    </button>
+  )
+}
+
 function Footer() {
   return (
     <footer className="site-footer">
@@ -64,6 +97,8 @@ export default function Layout({ children }) {
   const isExpedition = pathname === '/'
   const isBaseDetail = pathname.startsWith('/civs/bases/')
   const isAdmin = pathname.startsWith('/admin')
+
+  const [identityOpen, setIdentityOpen] = useState(false)
 
   // Mini countdown shows on every page except expedition (matches v9 logic).
   const showMini = !isExpedition && !isBaseDetail
@@ -94,6 +129,7 @@ export default function Layout({ children }) {
 
           <div className="nav-right">
             <SteamBadge />
+            <IdentityBadge onOpen={() => setIdentityOpen(true)} />
             <ul className="nav-links">
               {NAV_ITEMS.map((item) => (
                 <li
@@ -122,6 +158,7 @@ export default function Layout({ children }) {
       </header>
       <main>{children}</main>
       <Footer />
+      <IdentityModal open={identityOpen} onClose={() => setIdentityOpen(false)} />
     </>
   )
 }

@@ -378,13 +378,66 @@
   justify-content: flex-end;
 }
 
-/* Header right-side group: steam badge + nav links */
+/* Header right-side group: steam badge + identity badge + nav links */
 .nav-right {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 .header-spacer { flex: 1; }
+
+/* Traveler identity pill in the header. Empty = subdued cyan invitation,
+   filled = gold-tinted personal label. Both click to open the modal. */
+.identity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  background: transparent;
+  border: 1px solid var(--border-soft);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.identity-badge:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+.identity-badge-empty {
+  color: var(--accent-cyan);
+  border-color: rgba(74, 214, 217, 0.35);
+}
+.identity-badge-empty:hover {
+  background: rgba(74, 214, 217, 0.08);
+  border-color: var(--accent-cyan);
+}
+.identity-badge-set {
+  color: var(--accent-gold);
+  border-color: rgba(245, 184, 73, 0.35);
+}
+.identity-badge-set:hover {
+  background: rgba(245, 184, 73, 0.08);
+  border-color: var(--accent-gold);
+}
+.identity-icon { font-size: 0.95rem; }
+.identity-label {
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.identity-caret { font-size: 0.7rem; opacity: 0.7; }
+
+/* Mobile: drop the long "Set your Traveler identity" label, keep just the
+   icon. Filled state keeps the name (it's the user's own input, short enough). */
+@media (max-width: 640px) {
+  .identity-badge-empty .identity-label { display: none; }
+  .identity-badge { padding: 4px 8px; }
+}
 
 /* Wrapper that lets admin tables horizontally scroll on narrow screens
    instead of clipping out of view. */

@@ -3,6 +3,7 @@ import L from 'leaflet'
 import { api } from '../api/client'
 import Modal from '../components/Modal'
 import { useToast } from '../context/ToastContext'
+import { useIdentity } from '../context/IdentityContext'
 
 const REGIONS = [
   { value: 'all', label: 'Worldwide' },
@@ -38,7 +39,8 @@ function formatDate(starts_at) {
 }
 
 function SubmitMeetupForm({ onSubmitted, onClose }) {
-  const [form, setForm] = useState({
+  const { identity } = useIdentity()
+  const [form, setForm] = useState(() => ({
     title: '',
     region: 'europe',
     location: '',
@@ -46,9 +48,9 @@ function SubmitMeetupForm({ onSubmitted, onClose }) {
     longitude: '',
     starts_at: '',
     description: '',
-    organizer_name: '',
+    organizer_name: identity?.name || '',
     contact_url: '',
-  })
+  }))
   const [busy, setBusy] = useState(false)
   const toast = useToast()
   const mapRef = useRef(null)

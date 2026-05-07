@@ -1,5 +1,30 @@
 import { useEffect, useState } from 'react'
 import { useCountdown, pad } from '../components/useCountdown'
+import { useIdentity } from '../context/IdentityContext'
+import IdentityModal from '../components/IdentityModal'
+
+// NMS10 brand defaults for the DreamingFox card generator.
+//   cc=10  → corner color #851717 (deep red, matches the hex 10 logo)
+//   mc=19  → main color #000000 (black, the badge background)
+//   s=26   → sigil index DreamingFox confirmed for the NMS10 card
+// If you want a different default palette, change here only — the rest
+// of the URL is identity-driven.
+// TODO: revisit cc/mc once Mr Sinister + DreamingFox confirm a final
+// canonical color combo for the anniversary card. Today's pick is the
+// closest to the official banner palette in DreamingFox's existing options.
+const CARD_BRAND_PARAMS = { cc: '10', mc: '19', s: '26' }
+
+function buildCardUrl(identity) {
+  const params = new URLSearchParams()
+  for (const [k, v] of Object.entries(CARD_BRAND_PARAMS)) params.set(k, v)
+  if (identity) {
+    if (identity.name) params.set('n', identity.name)
+    params.set('r', String(identity.race))
+    if (identity.affiliation) params.set('a', identity.affiliation)
+    params.set('p', String(identity.platform))
+  }
+  return `https://grs.dreamingfox.dev/card?${params.toString()}`
+}
 
 const MILESTONES = [
   {
@@ -169,30 +194,64 @@ export default function Expedition() {
         </div>
       </div>
 
-      <div className="reward-section">
-        <div className={`reward-card${reward ? ' unlocked' : ''}`}>
-          <div className="reward-eyebrow">// The Reward</div>
-          <div className="reward-icon">★</div>
-          <h2 className="reward-title">Dreaming Traveller Card</h2>
-          <p className="reward-desc">
-            Complete all eight milestones to claim your symbolic badge of participation in the 10th anniversary expedition. Generator by DreamingFox.
-          </p>
-          {reward ? (
-            <a
-              href="https://grs.dreamingfox.dev/card?s=26"
-              target="_blank"
-              rel="noreferrer"
-              className="reward-cta"
-            >
-              Claim your card →
-            </a>
-          ) : (
-            <a href="#" className="reward-cta" onClick={(e) => e.preventDefault()}>
-              Claim your card →
-            </a>
-          )}
-        </div>
-      </div>
+      <RewardSection reward={reward} />
     </section>
+  )
+}
+
+function RewardSection({ reward }) {
+  const { identity } = useIdentity()
+  const [identityOpen, setIdentityOpen] = useState(false)
+
+  let cta
+  if (!reward) {
+    // Locked — same as before, click does nothing
+    cta = (
+      <a href="#" className="reward-cta" onClick={(e) => e.preventDefault()}>
+        Claim your card →
+      </a>
+    )
+  } else if (!identity) {
+    // 8/8 done but no identity — clicking opens the modal so they can
+    // personalize before claiming. After they save, this re-renders with
+    // their identity and the link goes live.
+    cta = (
+      <a
+        href="#"
+        className="reward-cta"
+        onClick={(e) => {
+          e.preventDefault()
+          setIdentityOpen(true)
+        }}
+      >
+        Set your identity to claim →
+      </a>
+    )
+  } else {
+    cta = (
+      <a
+        href={buildCardUrl(identity)}
+        target="_blank"
+        rel="noreferrer"
+        className="reward-cta"
+      >
+        Claim your card →
+      </a>
+    )
+  }
+
+  return (
+    <div className="reward-section">
+      <div className={`reward-card${reward ? ' unlocked' : ''}`}>
+        <div className="reward-eyebrow">// The Reward</div>
+        <div className="reward-icon">★</div>
+        <h2 className="reward-title">Dreaming Traveller Card</h2>
+        <p className="reward-desc">
+          Complete all eight milestones to claim your symbolic badge of participation in the 10th anniversary expedition. Generator by DreamingFox.
+        </p>
+        {cta}
+      </div>
+      <IdentityModal open={identityOpen} onClose={() => setIdentityOpen(false)} />
+    </div>
   )
 }
