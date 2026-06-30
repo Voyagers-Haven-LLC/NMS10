@@ -492,7 +492,12 @@
       transform: scale(1.05);
     }
     .milestone-card.completed .milestone-badge {
-      filter: brightness(1.2) drop-shadow(0 0 12px rgba(245,184,73,0.5));
+      /* Brighter exposure + warm backlight halo so the badge reads "lit",
+         not dimmed, against the dark card. */
+      filter:
+        brightness(1.55) saturate(2.4) contrast(1.15)
+        drop-shadow(0 0 10px rgba(255, 216, 150, 0.55))
+        drop-shadow(0 0 26px rgba(255, 176, 80, 0.32));
     }
 
     .milestone-icon {
@@ -594,7 +599,10 @@
       transition: filter 0.4s ease, transform 0.4s ease;
     }
     .reward-card.unlocked .reward-badge {
-      filter: brightness(1.2) drop-shadow(0 0 26px rgba(245,184,73,0.55));
+      filter:
+        brightness(1.55) saturate(2.4) contrast(1.15)
+        drop-shadow(0 0 20px rgba(255, 216, 150, 0.6))
+        drop-shadow(0 0 46px rgba(255, 176, 80, 0.34));
       transform: scale(1.04);
     }
 
