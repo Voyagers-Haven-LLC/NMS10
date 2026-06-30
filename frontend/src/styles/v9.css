@@ -477,8 +477,26 @@
     }
     .milestone-card.completed .milestone-checkbox::after { opacity: 1; }
 
+    /* Real badge art. Locked state shows the grey silhouette (badge-NN-locked),
+       completed state shows the full illustrated badge (badge-NN) + gold glow.
+       The image swap is driven in JS, so no greyscale filter is needed here. */
+    .milestone-badge {
+      width: 112px;
+      height: 112px;
+      object-fit: contain;
+      margin-bottom: 0.5rem;
+      filter: brightness(1.2);
+      transition: transform 0.25s ease, filter 0.3s ease;
+    }
+    .milestone-card:hover .milestone-badge {
+      transform: scale(1.05);
+    }
+    .milestone-card.completed .milestone-badge {
+      filter: brightness(1.2) drop-shadow(0 0 12px rgba(245,184,73,0.5));
+    }
+
     .milestone-icon {
-      /* Placeholder visual until Nerozii's real icons are ready */
+      /* Fallback orb — shown only if a badge-NN.png is missing/fails to load */
       width: 64px;
       height: 64px;
       border-radius: 50%;
@@ -564,7 +582,24 @@
       margin-bottom: 1rem;
     }
 
+    /* Reward badge art. Silhouette while locked, full illustrated badge + glow
+       once 8/8 is reached (image swap handled in JS). */
+    .reward-badge {
+      width: 156px;
+      height: 156px;
+      object-fit: contain;
+      margin: 0 auto 1.5rem;
+      display: block;
+      filter: brightness(1.2);
+      transition: filter 0.4s ease, transform 0.4s ease;
+    }
+    .reward-card.unlocked .reward-badge {
+      filter: brightness(1.2) drop-shadow(0 0 26px rgba(245,184,73,0.55));
+      transform: scale(1.04);
+    }
+
     .reward-icon {
+      /* Fallback orb — shown only if /badges/reward.png is missing/fails */
       width: 96px;
       height: 96px;
       margin: 0 auto 1.5rem;

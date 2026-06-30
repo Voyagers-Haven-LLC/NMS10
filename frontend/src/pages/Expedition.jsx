@@ -89,6 +89,29 @@ function saveCompleted(set) {
   } catch {}
 }
 
+// Badge art lives in /public/badges/. Two files per milestone (id 01..08):
+//   badge-NN-locked.webp — grey silhouette, shown while the milestone is locked
+//   badge-NN.webp        — full illustrated badge, shown once completed
+// Falls back to the numbered orb if a file is missing, so a card never renders
+// empty.
+function MilestoneBadge({ id, completed }) {
+  const n = pad(parseInt(id, 10))
+  const [failed, setFailed] = useState(false)
+  if (failed) {
+    return <div className="milestone-icon milestone-icon-fallback">{n}</div>
+  }
+  const src = completed ? `/badges/badge-${n}.webp` : `/badges/badge-${n}-locked.webp`
+  return (
+    <img
+      src={src}
+      alt=""
+      className="milestone-badge"
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
 function MilestoneCard({ m, completed, onToggle }) {
   return (
     <article
@@ -104,7 +127,7 @@ function MilestoneCard({ m, completed, onToggle }) {
         </div>
         <div className="milestone-checkbox" />
       </div>
-      <div className="milestone-icon">{pad(parseInt(m.id, 10))}</div>
+      <MilestoneBadge id={m.id} completed={completed} />
       <h3 className="milestone-title">{m.title}</h3>
       <p className="milestone-desc">{m.desc}</p>
       <div className="milestone-status">{completed ? 'Completed' : 'Status'}</div>
@@ -202,6 +225,23 @@ export default function Expedition() {
   )
 }
 
+// Final reward badge — /public/badges/reward-locked.webp (silhouette) until 8/8,
+// then /public/badges/reward.webp (full art). Falls back to the ★ orb if missing.
+function RewardBadge({ unlocked }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return <div className="reward-icon">★</div>
+  const src = unlocked ? '/badges/reward.webp' : '/badges/reward-locked.webp'
+  return (
+    <img
+      src={src}
+      alt=""
+      className="reward-badge"
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
 function RewardSection({ reward }) {
   const { identity } = useIdentity()
   const [identityOpen, setIdentityOpen] = useState(false)
@@ -247,7 +287,7 @@ function RewardSection({ reward }) {
     <div className="reward-section">
       <div className={`reward-card${reward ? ' unlocked' : ''}`}>
         <div className="reward-eyebrow">// The Reward</div>
-        <div className="reward-icon">★</div>
+        <RewardBadge unlocked={reward} />
         <h2 className="reward-title">Dreaming Traveller Card</h2>
         <p className="reward-desc">
           Complete all eight milestones to claim your symbolic badge of participation in the 10th anniversary expedition. Generator by DreamingFox.
