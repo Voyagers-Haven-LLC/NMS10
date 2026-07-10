@@ -40,7 +40,7 @@ export const SIGILS = [
   'None',
   'FoxTech',
   'Traveller',
-  'Galactic Hub',
+  null,  // slot retired — index kept so later `s=` values stay valid
   'Alliance of Galactic Travellers',
   'United Federation of Travelers',
   'United Nations 42',

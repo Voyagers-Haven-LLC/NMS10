@@ -8,8 +8,8 @@ import IdentityModal from '../components/IdentityModal'
 //   mc=19  → main color #000000 (black, the badge background)
 // Sigil (`s=`) is now identity-driven — users pick from SIGILS in the
 // modal. DreamingFox doesn't have an NMS10 sigil yet; the dropdown
-// defaults to "None" (s=0) and includes The Voyager's Haven (s=28),
-// Galactic Hub (s=3), and 34 other community emblems.
+// defaults to "None" (s=0) and includes The Voyager's Haven (s=28)
+// and 30+ other community emblems.
 //
 // TODO: revisit cc/mc once Mr Sinister + DreamingFox confirm a final
 // canonical color combo for the anniversary card. Today's pick is the

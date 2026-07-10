@@ -81,7 +81,7 @@ export default function IdentityModal({ open, onClose }) {
             <label>Sigil</label>
             <select value={draft.sigil} onChange={onChange('sigil')}>
               {SIGILS.map((s, i) => (
-                <option key={s} value={i}>{s}</option>
+                s ? <option key={s} value={i}>{s}</option> : null
               ))}
             </select>
           </div>
@@ -92,7 +92,7 @@ export default function IdentityModal({ open, onClose }) {
               maxLength={60}
               value={draft.affiliation}
               onChange={onChange('affiliation')}
-              placeholder="Voyager's Haven, Galactic Hub, Independent…"
+              placeholder="Voyager's Haven, Everion Empire, Independent…"
             />
           </div>
 

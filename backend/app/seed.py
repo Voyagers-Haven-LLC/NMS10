@@ -44,7 +44,7 @@ BASES = [
         "id": "tethys-reach",
         "title": "Tethys Reach",
         "builder_name": "Lyra Vesalius",
-        "builder_affiliation": "Galactic Hub",
+        "builder_affiliation": "Meridian Hub",
         "description": (
             "A bioluminescent deep-ocean colony spanning three coral spires. "
             "Built entirely underwater. Visit at night to see the full effect."
@@ -161,13 +161,6 @@ COMMUNITIES = [
         "language": "English",
         "description": "A community atlas and mapping initiative for No Man's Sky exploration.",
         "link_url": "https://havenmap.online",
-    },
-    {
-        "id": "galactic-hub",
-        "name": "Galactic Hub",
-        "language": "English",
-        "description": "The largest civilization in No Man's Sky, established in Euclid since 2017.",
-        "link_url": None,
     },
     {
         "id": "had-sh",
