@@ -37,6 +37,19 @@ ssh -i ~/.ssh/claude_pi_key pi8gb@100.79.172.115 'docker ps --filter name=<conta
 ssh -i ~/.ssh/claude_pi_key pi8gb@100.79.172.115 'curl -sk -o /dev/null -w "%{http_code}" --resolve <domain>:443:127.0.0.1 https://<domain>/'
 ```
 
+## Serving this for Parker — tailnet URL, never localhost-only
+
+`npm run dev` binds `0.0.0.0` (`host: true` in `frontend/vite.config.js`) on **:5173**;
+it proxies `/api` + `/media` to the backend on :8000.
+
+Hand back **`http://100.70.191.5:5173/`** — never `http://localhost:5173`. A localhost URL
+is a dead end: Parker can't forward it, and re-asking for a real one burns a round-trip. Every
+viewer we send to (Stars & co) is already a tailnet node, so the `100.x` URL just works.
+Confirm the IP if it looks off — `"/c/Program Files/Tailscale/tailscale.exe" ip -4`
+(`tailscale` is not on PATH in git-bash). Never "fix" a bind error by reverting to localhost.
+
+Full rule + rationale: Master-Haven's `CLAUDE.md`.
+
 ## Universal gotchas
 - **NPM routing:** the `npm` (Nginx Proxy Manager) container routes each domain to its container **by name** over the `docker_default` network. A compose recreate that drops the container off `docker_default` → instant 502.
 - **Data never moves:** DBs/photos/backups live in host mounts. `git pull`/rebuilds must never touch them.
