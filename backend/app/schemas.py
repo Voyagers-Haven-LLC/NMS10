@@ -65,6 +65,7 @@ class CommunityAdminUpsert(BaseModel):
     language: Optional[str] = None
     description: Optional[str] = None
     link_url: Optional[str] = None
+    logo_image_path: Optional[str] = None
     approved: Optional[bool] = None
 
 

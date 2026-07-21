@@ -65,10 +65,20 @@ function QueueTab({ refreshTick, onAfterAction }) {
         <div className="queue-group">
           <div className="queue-group-title">Pending bases ({queue.bases.length})</div>
           <div className="admin-table-wrap"><table className="admin-table">
-            <thead><tr><th>Title</th><th>Builder</th><th>Platform</th><th>Submitted</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Photo</th><th>Title</th><th>Builder</th><th>Platform</th><th>Submitted</th><th>Actions</th></tr></thead>
             <tbody>
               {queue.bases.map((b) => (
                 <tr key={b.id}>
+                  <td>
+                    {b.hero_image_path ? (
+                      <a className="queue-thumb" href={b.hero_image_path} target="_blank" rel="noreferrer" title="Open full size">
+                        <img src={b.hero_image_path} alt="" />
+                      </a>
+                    ) : (
+                      <div className="queue-thumb empty">no&nbsp;photo</div>
+                    )}
+                    {b.image_count > 0 && <div className="field-hint" style={{ marginTop: 2 }}>+{b.image_count} more</div>}
+                  </td>
                   <td>{b.title}</td>
                   <td>{b.builder_name}</td>
                   <td>{b.platform || '—'}</td>
@@ -87,10 +97,19 @@ function QueueTab({ refreshTick, onAfterAction }) {
         <div className="queue-group">
           <div className="queue-group-title">Pending communities ({queue.communities.length})</div>
           <div className="admin-table-wrap"><table className="admin-table">
-            <thead><tr><th>Name</th><th>Language</th><th>Added</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Logo</th><th>Name</th><th>Language</th><th>Added</th><th>Actions</th></tr></thead>
             <tbody>
               {queue.communities.map((c) => (
                 <tr key={c.id}>
+                  <td>
+                    {c.logo_image_path ? (
+                      <a className="queue-thumb" href={c.logo_image_path} target="_blank" rel="noreferrer" title="Open full size">
+                        <img src={c.logo_image_path} alt="" />
+                      </a>
+                    ) : (
+                      <div className="queue-thumb empty">no&nbsp;logo</div>
+                    )}
+                  </td>
                   <td>{c.name}</td>
                   <td>{c.language || '—'}</td>
                   <td>{c.added_at}</td>

@@ -5,11 +5,12 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from sqlalchemy import text
 
 from .. import config
 from ..db import engine
+from ..media import save_processed_image
 from ..notifications import notify_bot
 from ..rate_limit import limiter
 from ..schemas import BaseSubmission
@@ -162,3 +163,69 @@ def submit_base(request: Request, payload: BaseSubmission) -> dict:
         },
     )
     return {"id": unique_id, "status": "pending"}
+
+
+# --- public base image upload (attach photos to a just-submitted base) ---
+#
+# Photos attach only while the base is still 'pending' (i.e. sitting in the
+# moderation queue). Once a moderator approves or rejects it, the public upload
+# door closes. Combined with the moderation gate and the per-IP rate limit, that
+# bounds abuse: the worst a griefer can do is add images to their own pending
+# submission, which a human reviews before anything goes public. Everything runs
+# through media.save_processed_image (type/size checks + downscale + re-encode).
+
+MAX_GALLERY_PER_BASE = 4
+
+
+def _require_pending(conn, base_id: str):
+    row = conn.execute(text("SELECT status FROM bases WHERE id = :id"), {"id": base_id}).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="base not found")
+    if row.status != "pending":
+        raise HTTPException(
+            status_code=409,
+            detail="photos can only be added while a submission is pending review",
+        )
+
+
+@router.post("/submissions/bases/{base_id}/hero", status_code=201)
+@limiter.limit(config.IMAGE_UPLOAD_RATE_LIMIT)
+def submit_base_hero(request: Request, base_id: str, file: UploadFile = File(...)) -> dict:
+    with engine.begin() as conn:
+        _require_pending(conn, base_id)
+        dest = save_processed_image(base_id, file)
+        rel = f"/media/{base_id}/{dest.name}"
+        conn.execute(
+            text("UPDATE bases SET hero_image_path = :p WHERE id = :id"),
+            {"p": rel, "id": base_id},
+        )
+    return {"hero_image_path": rel}
+
+
+@router.post("/submissions/bases/{base_id}/gallery", status_code=201)
+@limiter.limit(config.IMAGE_UPLOAD_RATE_LIMIT)
+def submit_base_gallery(request: Request, base_id: str, file: UploadFile = File(...)) -> dict:
+    with engine.begin() as conn:
+        _require_pending(conn, base_id)
+        count = conn.execute(
+            text("SELECT COUNT(*) FROM base_images WHERE base_id = :id"), {"id": base_id}
+        ).scalar() or 0
+        if count >= MAX_GALLERY_PER_BASE:
+            raise HTTPException(
+                status_code=409,
+                detail=f"gallery limit reached ({MAX_GALLERY_PER_BASE} photos max)",
+            )
+        dest = save_processed_image(base_id, file)
+        rel = f"/media/{base_id}/{dest.name}"
+        order = conn.execute(
+            text("SELECT COALESCE(MAX(display_order), 0) + 1 FROM base_images WHERE base_id = :id"),
+            {"id": base_id},
+        ).scalar()
+        result = conn.execute(
+            text(
+                "INSERT INTO base_images (base_id, image_path, caption, display_order) "
+                "VALUES (:b, :p, NULL, :o)"
+            ),
+            {"b": base_id, "p": rel, "o": order},
+        )
+    return {"id": result.lastrowid, "image_path": rel, "display_order": order}

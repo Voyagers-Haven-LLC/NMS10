@@ -61,13 +61,15 @@ def get_queue(_user: dict = Depends(auth.require_admin)) -> dict:
     with engine.connect() as conn:
         bases = conn.execute(
             text(
-                "SELECT id, title, builder_name, platform, submitted_at, status "
-                "FROM bases WHERE status = 'pending' ORDER BY submitted_at DESC"
+                "SELECT b.id, b.title, b.builder_name, b.platform, b.submitted_at, b.status, "
+                "       b.hero_image_path, "
+                "       (SELECT COUNT(*) FROM base_images bi WHERE bi.base_id = b.id) AS image_count "
+                "FROM bases b WHERE b.status = 'pending' ORDER BY b.submitted_at DESC"
             )
         ).all()
         communities = conn.execute(
             text(
-                "SELECT id, name, language, added_at, approved "
+                "SELECT id, name, language, logo_image_path, added_at, approved "
                 "FROM communities WHERE approved = 0 ORDER BY added_at DESC"
             )
         ).all()
@@ -94,6 +96,8 @@ def get_queue(_user: dict = Depends(auth.require_admin)) -> dict:
                 "platform": b.platform,
                 "submitted_at": b.submitted_at,
                 "status": b.status,
+                "hero_image_path": b.hero_image_path,
+                "image_count": b.image_count or 0,
             }
             for b in bases
         ],
@@ -102,6 +106,7 @@ def get_queue(_user: dict = Depends(auth.require_admin)) -> dict:
                 "id": c.id,
                 "name": c.name,
                 "language": c.language,
+                "logo_image_path": c.logo_image_path,
                 "added_at": c.added_at,
             }
             for c in communities
@@ -360,37 +365,11 @@ def admin_delete_base(base_id: str, _user: dict = Depends(auth.require_admin)) -
 
 
 # --- base image upload ---
-
-ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-MAX_IMAGE_BYTES = 8 * 1024 * 1024
-
-
-def _save_image(base_id: str, file: UploadFile) -> Path:
-    if file.content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(status_code=400, detail=f"unsupported image type: {file.content_type}")
-    suffix = {
-        "image/jpeg": ".jpg",
-        "image/png": ".png",
-        "image/webp": ".webp",
-        "image/gif": ".gif",
-    }[file.content_type]
-    base_dir = config.MEDIA_DIR / base_id
-    base_dir.mkdir(parents=True, exist_ok=True)
-    name = f"{uuid.uuid4().hex}{suffix}"
-    dest = base_dir / name
-    written = 0
-    with dest.open("wb") as out:
-        while True:
-            chunk = file.file.read(64 * 1024)
-            if not chunk:
-                break
-            written += len(chunk)
-            if written > MAX_IMAGE_BYTES:
-                out.close()
-                dest.unlink(missing_ok=True)
-                raise HTTPException(status_code=400, detail="image too large (8MB max)")
-            out.write(chunk)
-    return dest
+# Shared intake (validate type, cap size, EXIF-orient, strip metadata, downscale,
+# re-encode to progressive JPEG) lives in media.py so the admin panel and the
+# public submission flow process images identically.
+from ..media import community_logo_rel, save_community_logo
+from ..media import save_processed_image as _save_image
 
 
 @router.post("/admin/bases/{base_id}/hero-image")
@@ -476,6 +455,7 @@ def _community_row(row) -> dict:
         "language": row.language,
         "description": row.description,
         "link_url": row.link_url,
+        "logo_image_path": row.logo_image_path,
         "approved": bool(row.approved),
         "added_at": row.added_at,
     }
@@ -486,7 +466,7 @@ def admin_list_communities(_user: dict = Depends(auth.require_admin)) -> list[di
     with engine.connect() as conn:
         rows = conn.execute(
             text(
-                "SELECT id, name, language, description, link_url, approved, added_at "
+                "SELECT id, name, language, description, link_url, logo_image_path, approved, added_at "
                 "FROM communities ORDER BY added_at DESC"
             )
         ).all()
@@ -520,7 +500,7 @@ def admin_create_community(payload: CommunityAdminUpsert, _user: dict = Depends(
             },
         )
         row = conn.execute(
-            text("SELECT id, name, language, description, link_url, approved, added_at FROM communities WHERE id = :id"),
+            text("SELECT id, name, language, description, link_url, logo_image_path, approved, added_at FROM communities WHERE id = :id"),
             {"id": unique},
         ).first()
         return _community_row(row)
@@ -535,7 +515,7 @@ def admin_update_community(
     data = payload.model_dump(exclude_unset=True)
     sets = []
     params: dict = {"id": cid}
-    for col in ("name", "language", "description", "link_url"):
+    for col in ("name", "language", "description", "link_url", "logo_image_path"):
         if col in data:
             sets.append(f"{col} = :{col}")
             params[col] = data[col]
@@ -550,7 +530,7 @@ def admin_update_community(
         if result.rowcount == 0:
             raise HTTPException(status_code=404, detail="community not found")
         row = conn.execute(
-            text("SELECT id, name, language, description, link_url, approved, added_at FROM communities WHERE id = :id"),
+            text("SELECT id, name, language, description, link_url, logo_image_path, approved, added_at FROM communities WHERE id = :id"),
             {"id": cid},
         ).first()
         return _community_row(row)
@@ -563,7 +543,7 @@ def admin_approve_community(cid: str, _user: dict = Depends(auth.require_admin))
         if result.rowcount == 0:
             raise HTTPException(status_code=404, detail="community not found")
         row = conn.execute(
-            text("SELECT id, name, language, description, link_url, approved, added_at FROM communities WHERE id = :id"),
+            text("SELECT id, name, language, description, link_url, logo_image_path, approved, added_at FROM communities WHERE id = :id"),
             {"id": cid},
         ).first()
         result_dict = _community_row(row)
@@ -587,6 +567,27 @@ def admin_delete_community(cid: str, _user: dict = Depends(auth.require_admin)) 
         if result.rowcount == 0:
             raise HTTPException(status_code=404, detail="community not found")
     return {"ok": True}
+
+
+# --- community logo upload ---
+
+@router.post("/admin/communities/{cid}/logo")
+def admin_upload_community_logo(
+    cid: str,
+    file: UploadFile = File(...),
+    _user: dict = Depends(auth.require_admin),
+) -> dict:
+    with engine.begin() as conn:
+        existing = conn.execute(text("SELECT 1 FROM communities WHERE id = :id"), {"id": cid}).first()
+        if existing is None:
+            raise HTTPException(status_code=404, detail="community not found")
+        dest = save_community_logo(cid, file)
+        rel = community_logo_rel(cid, dest)
+        conn.execute(
+            text("UPDATE communities SET logo_image_path = :p WHERE id = :id"),
+            {"p": rel, "id": cid},
+        )
+    return {"logo_image_path": rel}
 
 
 # --- meetups CRUD ---

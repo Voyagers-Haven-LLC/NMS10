@@ -42,6 +42,24 @@ export default function CommunityEditor({ id, onClose, onSaved }) {
     }
   }
 
+  const uploadLogo = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (isNew) {
+      toast.error('Create the community first, then add a logo.')
+      return
+    }
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const data = await apiAuth(`/admin/communities/${id}/logo`, { method: 'POST', body: fd })
+      setForm((f) => ({ ...f, logo_image_path: data.logo_image_path }))
+      toast.success('Logo uploaded.')
+    } catch (err) {
+      toast.error(`Upload failed: ${err.message}`)
+    }
+  }
+
   return (
     <form onSubmit={save}>
       <div className="form-grid">
@@ -61,6 +79,19 @@ export default function CommunityEditor({ id, onClose, onSaved }) {
           <label>Description</label>
           <textarea value={form.description || ''} onChange={onChange('description')} />
         </div>
+        {!isNew && (
+          <div className="form-field span-2">
+            <label>Logo</label>
+            <div className="upload-row">
+              {form.logo_image_path ? (
+                <img src={form.logo_image_path} alt="logo" />
+              ) : (
+                <span className="muted" style={{ color: 'var(--text-tertiary)' }}>none</span>
+              )}
+              <input type="file" accept="image/*" onChange={uploadLogo} />
+            </div>
+          </div>
+        )}
         <div className="form-field span-2">
           <label>
             <input type="checkbox" checked={!!form.approved} onChange={onChange('approved')} /> Approved (visible publicly)

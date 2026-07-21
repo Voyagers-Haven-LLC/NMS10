@@ -334,6 +334,119 @@
   cursor: pointer;
 }
 
+/* Public submit-form photo pickers (cover + gallery) */
+.field-hint {
+  font-family: var(--font-body);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-tertiary);
+  font-size: 0.72rem;
+}
+.form-field input[type="file"] {
+  padding: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.form-field input[type="file"]::file-selector-button {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-right: 0.75rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.form-field input[type="file"]::file-selector-button:hover {
+  border-color: var(--accent-cyan);
+}
+.submit-photo-preview { margin-top: 0.6rem; }
+.submit-photo-preview img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+}
+.submit-photo-strip {
+  margin-top: 0.6rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 0.5rem;
+}
+.submit-photo-strip img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft);
+}
+
+/* Community card logo + submit-form logo preview */
+.civ-head {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+.civ-head .civ-name { margin-bottom: 0.15rem; }
+.civ-head .civ-language { margin-bottom: 0; }
+.civ-head-text { min-width: 0; }
+.civ-logo {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-sm);
+  flex: 0 0 auto;
+}
+/* A real (often transparent) logo shows as just the icon — no box, and
+   `contain` so it's never cropped. */
+img.civ-logo {
+  object-fit: contain;
+  background: transparent;
+}
+/* The fallback initial-avatar keeps a tinted box. */
+.civ-logo-empty {
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--accent-cyan);
+  background: rgba(74, 214, 217, 0.08);
+  border: 1px solid var(--border-soft);
+}
+.submit-logo-preview { margin-top: 0.6rem; }
+.submit-logo-preview img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+}
+
+/* Moderation queue thumbnail — lets a mod eyeball a submitted base photo */
+.queue-thumb {
+  width: 88px;
+  height: 56px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-base);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+.queue-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.queue-thumb.empty {
+  color: var(--text-tertiary);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
 /* Status pill */
 .status-pill {
   display: inline-block;

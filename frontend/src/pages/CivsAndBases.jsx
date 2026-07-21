@@ -13,9 +13,11 @@ const PLATFORMS = [
   { value: 'xbox', label: 'Xbox' },
   { value: 'switch', label: 'Switch' },
 ]
-const TAGS = ['megabase', 'settlement', 'outpost', 'underwater', 'themed', 'floating', 'monument']
 
 const PLATFORM_LABEL = { pc: 'PC', ps: 'PS5', xbox: 'Xbox', switch: 'Switch' }
+
+// How many gallery photos a submitter can attach (mirrors the backend cap).
+const MAX_GALLERY = 4
 
 function BaseCard({ base }) {
   const heroBg = base.hero_image_path
@@ -30,9 +32,6 @@ function BaseCard({ base }) {
               {PLATFORM_LABEL[base.platform] || base.platform}
             </span>
           )}
-          {(base.tags || []).slice(0, 2).map((t) => (
-            <span key={t} className="base-tag">{t.charAt(0).toUpperCase() + t.slice(1)}</span>
-          ))}
         </div>
         {!base.hero_image_path && (
           <div className={`placeholder-media ${base.hero_color || 'cyan'}`}>[ Hero shot · 16:10 ]</div>
@@ -58,8 +57,17 @@ function BaseCard({ base }) {
 function CommunityCard({ c }) {
   return (
     <article className="civ-card">
-      <div className="civ-name">{c.name}</div>
-      {c.language && <div className="civ-language">{c.language}</div>}
+      <div className="civ-head">
+        {c.logo_image_path ? (
+          <img className="civ-logo" src={c.logo_image_path} alt={`${c.name} logo`} />
+        ) : (
+          <div className="civ-logo civ-logo-empty">{(c.name || '?').charAt(0).toUpperCase()}</div>
+        )}
+        <div className="civ-head-text">
+          <div className="civ-name">{c.name}</div>
+          {c.language && <div className="civ-language">{c.language}</div>}
+        </div>
+      </div>
       {c.description && <p className="civ-desc">{c.description}</p>}
       {c.link_url ? (
         <a className="civ-link" href={c.link_url} target="_blank" rel="noreferrer">Visit →</a>
@@ -84,6 +92,13 @@ function platformFromIdentity(identityPlatform) {
   return null
 }
 
+// Thumbnail strip / preview for locally-selected files (revokes object URLs on change).
+function useObjectUrls(files) {
+  const urls = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files])
+  useEffect(() => () => urls.forEach((u) => URL.revokeObjectURL(u)), [urls])
+  return urls
+}
+
 function SubmitBaseForm({ onSubmitted, onClose }) {
   const { identity } = useIdentity()
   const prefillPlatform = platformFromIdentity(identity?.platform)
@@ -97,34 +112,72 @@ function SubmitBaseForm({ onSubmitted, onClose }) {
     galaxy: '',
     region: '',
     portal_address: '',
-    tags: '',
     submitter_email: '',
     submitter_discord_id: '',
   }))
+  const [heroFile, setHeroFile] = useState(null)
+  const [galleryFiles, setGalleryFiles] = useState([])
   const [busy, setBusy] = useState(false)
+  const [phase, setPhase] = useState('') // '', 'submitting', 'uploading'
   const toast = useToast()
 
+  const heroUrls = useObjectUrls(heroFile ? [heroFile] : [])
+  const galleryUrls = useObjectUrls(galleryFiles)
+
   const onChange = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+
+  const onPickGallery = (e) => {
+    const picked = Array.from(e.target.files || [])
+    setGalleryFiles(picked.slice(0, MAX_GALLERY))
+  }
 
   const submit = async (e) => {
     e.preventDefault()
     setBusy(true)
+    setPhase('submitting')
     try {
-      const tags = form.tags
-        .split(/[,\s]+/)
-        .map((t) => t.trim().toLowerCase())
-        .filter(Boolean)
-      const body = { ...form, tags }
-      const res = await api('/submissions/bases', { method: 'POST', body })
-      toast.success(`Submitted! Pending moderation as ${res.id}.`)
+      const res = await api('/submissions/bases', { method: 'POST', body: { ...form } })
+      const id = res.id
+
+      // Photos attach to the just-created (still-pending) base. Best-effort:
+      // the base is already queued, so a photo hiccup shouldn't lose the whole
+      // submission — we just warn about the photo.
+      let photoWarn = null
+      const files = [
+        ...(heroFile ? [{ f: heroFile, path: `/submissions/bases/${id}/hero` }] : []),
+        ...galleryFiles.slice(0, MAX_GALLERY).map((f) => ({ f, path: `/submissions/bases/${id}/gallery` })),
+      ]
+      if (files.length) {
+        setPhase('uploading')
+        for (const { f, path } of files) {
+          try {
+            const fd = new FormData()
+            fd.append('file', f)
+            await api(path, { method: 'POST', body: fd })
+          } catch (imgErr) {
+            photoWarn = imgErr.message
+          }
+        }
+      }
+
+      if (photoWarn) {
+        toast.error(`Base submitted as ${id}, but a photo didn't upload: ${photoWarn}`)
+      } else {
+        toast.success(`Submitted! Pending moderation as ${id}.`)
+      }
       onSubmitted?.(res)
       onClose()
     } catch (err) {
       toast.error(`Submission failed: ${err.message}`)
     } finally {
       setBusy(false)
+      setPhase('')
     }
   }
+
+  const submitLabel = busy
+    ? (phase === 'uploading' ? 'Uploading photos…' : 'Submitting…')
+    : 'Submit base'
 
   return (
     <form onSubmit={submit}>
@@ -141,6 +194,29 @@ function SubmitBaseForm({ onSubmitted, onClose }) {
           <label>Affiliation</label>
           <input value={form.builder_affiliation} onChange={onChange('builder_affiliation')} placeholder="Voyager's Haven" />
         </div>
+
+        {/* --- Photos --- */}
+        <div className="form-field span-2">
+          <label>Cover photo <span className="field-hint">· optional, but bases with a photo stand out</span></label>
+          <input type="file" accept="image/*" onChange={(e) => setHeroFile(e.target.files?.[0] || null)} />
+          {heroUrls[0] && (
+            <div className="submit-photo-preview">
+              <img src={heroUrls[0]} alt="cover preview" />
+            </div>
+          )}
+        </div>
+        <div className="form-field span-2">
+          <label>More photos <span className="field-hint">· up to {MAX_GALLERY}</span></label>
+          <input type="file" accept="image/*" multiple onChange={onPickGallery} />
+          {galleryUrls.length > 0 && (
+            <div className="submit-photo-strip">
+              {galleryUrls.map((u, i) => (
+                <img key={i} src={u} alt={`photo ${i + 1}`} />
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="form-field">
           <label>Platform</label>
           <select value={form.platform} onChange={onChange('platform')}>
@@ -158,13 +234,9 @@ function SubmitBaseForm({ onSubmitted, onClose }) {
           <label>Region</label>
           <input value={form.region} onChange={onChange('region')} />
         </div>
-        <div className="form-field span-2">
+        <div className="form-field">
           <label>Portal address</label>
           <input value={form.portal_address} onChange={onChange('portal_address')} placeholder="10A8 · F8AC · 1023 · 0001" />
-        </div>
-        <div className="form-field span-2">
-          <label>Tags (space or comma separated)</label>
-          <input value={form.tags} onChange={onChange('tags')} placeholder="megabase floating monument" />
         </div>
         <div className="form-field span-2">
           <label>Description</label>
@@ -185,9 +257,7 @@ function SubmitBaseForm({ onSubmitted, onClose }) {
       </div>
       <div className="form-actions">
         <button type="button" className="btn secondary" onClick={onClose} disabled={busy}>Cancel</button>
-        <button type="submit" className="btn primary" disabled={busy}>
-          {busy ? 'Submitting…' : 'Submit base'}
-        </button>
+        <button type="submit" className="btn primary" disabled={busy}>{submitLabel}</button>
       </div>
     </form>
   )
@@ -195,23 +265,41 @@ function SubmitBaseForm({ onSubmitted, onClose }) {
 
 function SubmitCommunityForm({ onSubmitted, onClose }) {
   const [form, setForm] = useState({ name: '', language: '', description: '', link_url: '' })
+  const [logoFile, setLogoFile] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [phase, setPhase] = useState('')
   const toast = useToast()
+  const logoUrls = useObjectUrls(logoFile ? [logoFile] : [])
   const onChange = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
   const submit = async (e) => {
     e.preventDefault()
     setBusy(true)
+    setPhase('submitting')
     try {
       const res = await api('/submissions/communities', { method: 'POST', body: form })
-      toast.success(`Submitted! Pending moderation as ${res.id}.`)
+      let logoWarn = null
+      if (logoFile) {
+        setPhase('uploading')
+        try {
+          const fd = new FormData()
+          fd.append('file', logoFile)
+          await api(`/submissions/communities/${res.id}/logo`, { method: 'POST', body: fd })
+        } catch (imgErr) {
+          logoWarn = imgErr.message
+        }
+      }
+      if (logoWarn) toast.error(`Community submitted as ${res.id}, but the logo didn't upload: ${logoWarn}`)
+      else toast.success(`Submitted! Pending moderation as ${res.id}.`)
       onSubmitted?.(res)
       onClose()
     } catch (err) {
       toast.error(`Submission failed: ${err.message}`)
     } finally {
       setBusy(false)
+      setPhase('')
     }
   }
+  const submitLabel = busy ? (phase === 'uploading' ? 'Uploading logo…' : 'Submitting…') : 'Submit community'
   return (
     <form onSubmit={submit}>
       <div className="form-grid">
@@ -228,15 +316,22 @@ function SubmitCommunityForm({ onSubmitted, onClose }) {
           <input value={form.link_url} onChange={onChange('link_url')} placeholder="https://" />
         </div>
         <div className="form-field span-2">
+          <label>Logo <span className="field-hint">· optional, square works best</span></label>
+          <input type="file" accept="image/*" onChange={(e) => setLogoFile(e.target.files?.[0] || null)} />
+          {logoUrls[0] && (
+            <div className="submit-logo-preview">
+              <img src={logoUrls[0]} alt="logo preview" />
+            </div>
+          )}
+        </div>
+        <div className="form-field span-2">
           <label>Description</label>
           <textarea value={form.description} onChange={onChange('description')} />
         </div>
       </div>
       <div className="form-actions">
         <button type="button" className="btn secondary" onClick={onClose} disabled={busy}>Cancel</button>
-        <button type="submit" className="btn primary" disabled={busy}>
-          {busy ? 'Submitting…' : 'Submit community'}
-        </button>
+        <button type="submit" className="btn primary" disabled={busy}>{submitLabel}</button>
       </div>
     </form>
   )
@@ -247,7 +342,6 @@ export default function CivsAndBases() {
   const [bases, setBases] = useState([])
   const [communities, setCommunities] = useState([])
   const [platform, setPlatform] = useState('all')
-  const [tags, setTags] = useState(new Set())
   const [openModal, setOpenModal] = useState(null) // 'base' | 'community' | null
 
   const load = () => {
@@ -259,20 +353,9 @@ export default function CivsAndBases() {
   const filtered = useMemo(() => {
     return bases.filter((b) => {
       if (platform !== 'all' && b.platform !== platform) return false
-      if (tags.size > 0) {
-        for (const t of tags) if (!(b.tags || []).includes(t)) return false
-      }
       return true
     })
-  }, [bases, platform, tags])
-
-  const toggleTag = (t) =>
-    setTags((cur) => {
-      const next = new Set(cur)
-      if (next.has(t)) next.delete(t)
-      else next.add(t)
-      return next
-    })
+  }, [bases, platform])
 
   return (
     <div className="container">
@@ -318,20 +401,6 @@ export default function CivsAndBases() {
               ))}
             </div>
           </div>
-          <div className="filter-section">
-            <div className="filter-section-label">Tags</div>
-            <div className="filter-bar" data-filter-group="tags">
-              {TAGS.map((t) => (
-                <button
-                  key={t}
-                  className={`filter-chip${tags.has(t) ? ' active' : ''}`}
-                  onClick={() => toggleTag(t)}
-                >
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
 
           <div className="inline-form-toggle">
             <button className="btn primary" onClick={() => setOpenModal('base')}>+ Submit a base</button>
@@ -339,7 +408,13 @@ export default function CivsAndBases() {
 
           <div className="base-grid">
             {filtered.length === 0 ? (
-              <div className="no-results show">No bases match these filters. Try clearing them.</div>
+              bases.length === 0 ? (
+                <div className="empty-state">
+                  No bases yet — be the first to submit one. Every build gets reviewed before it appears here.
+                </div>
+              ) : (
+                <div className="no-results show">No bases on this platform. Try “All”.</div>
+              )
             ) : (
               filtered.map((b) => <BaseCard key={b.id} base={b} />)
             )}

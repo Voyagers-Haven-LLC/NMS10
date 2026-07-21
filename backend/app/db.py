@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS communities (
   language TEXT,
   description TEXT,
   link_url TEXT,
+  logo_image_path TEXT,
   added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   approved BOOLEAN DEFAULT 0
 );
@@ -149,6 +150,23 @@ CREATE INDEX IF NOT EXISTS idx_meetups_region ON meetups(region);
 """
 
 
+def _ensure_column(conn, table: str, column: str, decl: str) -> None:
+    """Add a column to an existing table if it isn't there yet. CREATE TABLE
+    IF NOT EXISTS never alters an existing table, so new columns on already-
+    populated DBs (e.g. prod) need this. ALTER TABLE ADD COLUMN is additive —
+    existing rows get NULL, nothing is lost."""
+    cols = [r[1] for r in conn.execute(text(f"PRAGMA table_info({table})")).all()]
+    if column not in cols:
+        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {decl}"))
+        logger.info("migration: added %s.%s", table, column)
+
+
+def _run_migrations(conn) -> None:
+    """Idempotent, additive column migrations for DBs created before a column
+    existed. Safe to run on every boot."""
+    _ensure_column(conn, "communities", "logo_image_path", "TEXT")
+
+
 def init_db() -> None:
     """Apply the schema. Every CREATE uses IF NOT EXISTS so this is safe to
     run on every startup — new tables get added to existing DBs without
@@ -160,6 +178,7 @@ def init_db() -> None:
             stmt = statement.strip()
             if stmt:
                 conn.execute(text(stmt))
+        _run_migrations(conn)
 
 
 def get_session():

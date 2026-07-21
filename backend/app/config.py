@@ -90,6 +90,11 @@ SOCIAL_MEDIA_DIR = DATA_DIR / "social-media"
 # IP-based limits would just penalize whoever's hosting the bot.
 SUBMISSION_RATE_LIMIT = os.environ.get("NMS10_SUBMISSION_RATE_LIMIT", "5/hour")
 
+# Public base image uploads (hero + gallery) attach to a still-pending base and
+# fire as several requests per submission (1 hero + up to 4 gallery), so they
+# get their own, more generous per-IP limit than the one-shot submission POST.
+IMAGE_UPLOAD_RATE_LIMIT = os.environ.get("NMS10_IMAGE_UPLOAD_RATE_LIMIT", "40/hour")
+
 
 def _load_or_create_bot_secret() -> str:
     """Shared secret between backend and bot for rate-limit bypass.

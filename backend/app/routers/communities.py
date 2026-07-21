@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from sqlalchemy import text
 
 from .. import config
 from ..db import engine
+from ..media import community_logo_rel, save_community_logo
 from ..notifications import notify_bot
 from ..rate_limit import limiter
 from ..schemas import CommunitySubmission
@@ -22,6 +23,7 @@ def _row(row) -> dict:
         "language": row.language,
         "description": row.description,
         "link_url": row.link_url,
+        "logo_image_path": row.logo_image_path,
         "approved": bool(row.approved),
     }
 
@@ -31,7 +33,7 @@ def list_communities() -> list[dict]:
     with engine.connect() as conn:
         rows = conn.execute(
             text(
-                "SELECT id, name, language, description, link_url, approved "
+                "SELECT id, name, language, description, link_url, logo_image_path, approved "
                 "FROM communities WHERE approved = 1 ORDER BY added_at ASC"
             )
         ).all()
@@ -66,3 +68,29 @@ def submit_community(request: Request, payload: CommunitySubmission) -> dict:
         {"entity": "community", "id": unique, "name": payload.name, "language": payload.language},
     )
     return {"id": unique, "approved": False}
+
+
+@router.post("/submissions/communities/{cid}/logo", status_code=201)
+@limiter.limit(config.IMAGE_UPLOAD_RATE_LIMIT)
+def submit_community_logo(request: Request, cid: str, file: UploadFile = File(...)) -> dict:
+    """Attach a logo to a just-submitted community. Mirrors base photo upload:
+    only accepted while the community is still unapproved (pending review), so
+    a human vets it before it goes public. Rate-limited + re-encoded."""
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT approved FROM communities WHERE id = :id"), {"id": cid}
+        ).first()
+        if row is None:
+            raise HTTPException(status_code=404, detail="community not found")
+        if row.approved:
+            raise HTTPException(
+                status_code=409,
+                detail="a logo can only be added while a submission is pending review",
+            )
+        dest = save_community_logo(cid, file)
+        rel = community_logo_rel(cid, dest)
+        conn.execute(
+            text("UPDATE communities SET logo_image_path = :p WHERE id = :id"),
+            {"p": rel, "id": cid},
+        )
+    return {"logo_image_path": rel}
