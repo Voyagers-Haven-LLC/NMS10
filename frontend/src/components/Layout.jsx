@@ -85,7 +85,7 @@ function Footer() {
     <footer className="site-footer">
       <div className="container footer-row">
         <span>© 2026 Voyager's Haven · Built for the NMS10 collaborative</span>
-        <span>Banner art: Nerozii · Logo: Mr Sinister</span>
+        <span>Banner &amp; logo: Nerozii &amp; Mr Sinister</span>
         <span>v0.1 · live build</span>
       </div>
     </footer>
