@@ -32,10 +32,17 @@ export const PLATFORMS = [
 // Sigils available in DreamingFox's GRS card generator. Index === `s=` value.
 // Source: extracted from the GRS bundle (https://grs.dreamingfox.dev/main.*.js).
 // DO NOT REORDER — values are positional and would break existing card URLs.
+// Appending to the END is safe (new indices only) — that's how we re-sync.
 //
-// As of extraction (2026-05-07) DreamingFox has not uploaded an NMS10 sigil.
-// "The Voyager's Haven" (28) is closest to what we'd ship as default. Default
-// to 0 (None) so users have to choose; cards without a sigil still render.
+// Last re-synced 2026-07-21: Fox's set grew from 37 to 45 options (indices
+// 1-44). Index 3 (his "Galactic Hub") is intentionally kept null — GHUB was
+// removed from Haven at their request; we never surface it. Default is 0 (None)
+// so users choose; cards render fine without a sigil. Fox also has an NMS-10
+// anniversary logo in his *sticker* set (the `st=` param) if we ever want it.
+//
+// The card URL references Fox's embedded PNGs by index only — it can't take a
+// custom image. For a civ Fox hasn't uploaded there's no `s=`; ask him to add
+// the emblem, then append the index he hands back here.
 export const SIGILS = [
   'None',
   'FoxTech',
@@ -74,6 +81,15 @@ export const SIGILS = [
   'The Neoterra Collective',
   'Gek Banking',
   'The Imperial Enclave',
+  // --- added by Fox since the May sync (re-synced 2026-07-21) ---
+  'Dread-Force',
+  'Atlas Imperium',
+  'The Stellar Syndicate',
+  'Voidborne Empire',
+  'The Pirate Syndicate (v2)',   // Fox's 2nd Pirate Syndicate emblem (ThePirateSyndicate.png); s=9 is the first
+  'Royal Space Society',
+  'Civitas Archivum XVI',
+  'Imperium Umbra',
 ]
 
 const DEFAULT_RACE = 5      // Traveller — fits the anniversary theme

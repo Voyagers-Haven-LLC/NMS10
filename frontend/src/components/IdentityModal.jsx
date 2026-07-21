@@ -81,7 +81,7 @@ export default function IdentityModal({ open, onClose }) {
             <label>Sigil</label>
             <select value={draft.sigil} onChange={onChange('sigil')}>
               {SIGILS.map((s, i) => (
-                s ? <option key={s} value={i}>{s}</option> : null
+                s ? <option key={i} value={i}>{s}</option> : null
               ))}
             </select>
           </div>
