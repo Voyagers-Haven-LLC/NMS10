@@ -477,28 +477,39 @@
     }
     .milestone-card.completed .milestone-checkbox::after { opacity: 1; }
 
-    /* Real badge art. Locked state shows the grey silhouette (badge-NN-locked),
-       completed state shows the full illustrated badge (badge-NN) + gold glow.
-       The image swap is driven in JS, so no greyscale filter is needed here. */
+    /* Real badge art — three stacked emblem states cross-faded by opacity,
+       mirroring the in-game expedition menu. No brightness/saturate filters:
+       the completed art is a true opaque emblem, so it lights itself.
+         idle  (badge-NN-idle)  — dark silhouette, default
+         hover (badge-NN-hover) — dimmed emblem, shown on hover if not done
+         full  (badge-NN-full)  — full opaque emblem, shown once completed */
     .milestone-badge {
+      position: relative;
       width: 112px;
       height: 112px;
-      object-fit: contain;
       margin-bottom: 0.5rem;
-      filter: brightness(1.2);
-      transition: transform 0.25s ease, filter 0.3s ease;
     }
-    .milestone-card:hover .milestone-badge {
-      transform: scale(1.05);
+    .milestone-badge img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transition: opacity 0.3s ease, transform 0.25s ease;
     }
-    .milestone-card.completed .milestone-badge {
-      /* Brighter exposure + warm backlight halo so the badge reads "lit",
-         not dimmed, against the dark card. */
-      filter:
-        brightness(1.55) saturate(2.4) contrast(1.15)
-        drop-shadow(0 0 10px rgba(255, 216, 150, 0.55))
-        drop-shadow(0 0 26px rgba(255, 176, 80, 0.32));
-    }
+    .milestone-badge .mb-idle  { opacity: 1; }
+    .milestone-badge .mb-hover { opacity: 0; }
+    .milestone-badge .mb-full  { opacity: 0; }
+
+    /* Hover on an incomplete card: fade idle -> dimmed emblem */
+    .milestone-card:not(.completed):hover .milestone-badge .mb-idle  { opacity: 0; }
+    .milestone-card:not(.completed):hover .milestone-badge .mb-hover { opacity: 1; }
+    .milestone-card:hover .milestone-badge img { transform: scale(1.05); }
+
+    /* Completed: full opaque emblem, regardless of hover */
+    .milestone-card.completed .milestone-badge .mb-idle  { opacity: 0; }
+    .milestone-card.completed .milestone-badge .mb-hover { opacity: 0; }
+    .milestone-card.completed .milestone-badge .mb-full  { opacity: 1; }
 
     .milestone-icon {
       /* Fallback orb — shown only if a badge-NN.png is missing/fails to load */
@@ -587,24 +598,32 @@
       margin-bottom: 1rem;
     }
 
-    /* Reward badge art. Silhouette while locked, full illustrated badge + glow
-       once 8/8 is reached (image swap handled in JS). */
+    /* Reward badge art — silhouette (reward-idle) cross-fading to the full
+       opaque emblem (reward-full) once 8/8 is reached. No fake filters. */
     .reward-badge {
+      position: relative;
       width: 156px;
       height: 156px;
-      object-fit: contain;
       margin: 0 auto 1.5rem;
-      display: block;
-      filter: brightness(1.2);
-      transition: filter 0.4s ease, transform 0.4s ease;
     }
-    .reward-card.unlocked .reward-badge {
-      filter:
-        brightness(1.55) saturate(2.4) contrast(1.15)
-        drop-shadow(0 0 20px rgba(255, 216, 150, 0.6))
-        drop-shadow(0 0 46px rgba(255, 176, 80, 0.34));
-      transform: scale(1.04);
+    .reward-badge img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transition: opacity 0.4s ease, transform 0.4s ease;
     }
+    .reward-badge .rb-idle  { opacity: 1; }
+    .reward-badge .rb-hover { opacity: 0; }
+    .reward-badge .rb-full  { opacity: 0; }
+    /* Hover the still-locked reward card: fade idle -> dimmed emblem */
+    .reward-card:not(.unlocked):hover .reward-badge .rb-idle  { opacity: 0; }
+    .reward-card:not(.unlocked):hover .reward-badge .rb-hover { opacity: 1; }
+    /* Unlocked at 8/8: full opaque emblem */
+    .reward-card.unlocked .reward-badge .rb-idle  { opacity: 0; }
+    .reward-card.unlocked .reward-badge .rb-hover { opacity: 0; }
+    .reward-card.unlocked .reward-badge .rb-full  { opacity: 1; transform: scale(1.04); }
 
     .reward-icon {
       /* Fallback orb — shown only if /badges/reward.png is missing/fails */

@@ -63,6 +63,7 @@ function IdentityBadge({ onOpen }) {
       >
         <span className="identity-icon">◇</span>
         <span className="identity-label">Set your Traveler identity</span>
+        <span className="identity-label-mobile">Set identity</span>
       </button>
     )
   }

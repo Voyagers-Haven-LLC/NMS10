@@ -544,11 +544,15 @@ img.civ-logo {
   white-space: nowrap;
 }
 .identity-caret { font-size: 0.7rem; opacity: 0.7; }
+/* A short label swapped in for the full one on mobile so the empty badge
+   isn't a lone unlabeled icon. */
+.identity-label-mobile { display: none; }
 
 /* Mobile: drop the long "Set your Traveler identity" label, keep just the
    icon. Filled state keeps the name (it's the user's own input, short enough). */
 @media (max-width: 640px) {
   .identity-badge-empty .identity-label { display: none; }
+  .identity-badge-empty .identity-label-mobile { display: inline; }
   .identity-badge { padding: 4px 8px; }
 }
 

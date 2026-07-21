@@ -89,26 +89,26 @@ function saveCompleted(set) {
   } catch {}
 }
 
-// Badge art lives in /public/badges/. Two files per milestone (id 01..08):
-//   badge-NN-locked.webp — grey silhouette, shown while the milestone is locked
-//   badge-NN.webp        — full illustrated badge, shown once completed
-// Falls back to the numbered orb if a file is missing, so a card never renders
-// empty.
-function MilestoneBadge({ id, completed }) {
+// Badge art lives in /public/badges/. Three files per milestone (id 01..08),
+// mirroring the in-game expedition menu's emblem states:
+//   badge-NN-idle.webp  — dark silhouette shape (idle / not selected)
+//   badge-NN-hover.webp — dimmed, semi-transparent emblem (hovered, not done)
+//   badge-NN-full.webp  — full opaque emblem (completed)
+// The three are stacked and cross-faded by opacity in CSS, keyed off the
+// card's :hover and .completed states. Falls back to the numbered orb if the
+// art fails to load, so a card never renders empty.
+function MilestoneBadge({ id }) {
   const n = pad(parseInt(id, 10))
   const [failed, setFailed] = useState(false)
   if (failed) {
     return <div className="milestone-icon milestone-icon-fallback">{n}</div>
   }
-  const src = completed ? `/badges/badge-${n}.webp` : `/badges/badge-${n}-locked.webp`
   return (
-    <img
-      src={src}
-      alt=""
-      className="milestone-badge"
-      decoding="async"
-      onError={() => setFailed(true)}
-    />
+    <div className="milestone-badge">
+      <img className="mb-idle" src={`/badges/badge-${n}-idle.webp`} alt="" decoding="async" onError={() => setFailed(true)} />
+      <img className="mb-hover" src={`/badges/badge-${n}-hover.webp`} alt="" decoding="async" />
+      <img className="mb-full" src={`/badges/badge-${n}-full.webp`} alt="" decoding="async" />
+    </div>
   )
 }
 
@@ -127,7 +127,7 @@ function MilestoneCard({ m, completed, onToggle }) {
         </div>
         <div className="milestone-checkbox" />
       </div>
-      <MilestoneBadge id={m.id} completed={completed} />
+      <MilestoneBadge id={m.id} />
       <h3 className="milestone-title">{m.title}</h3>
       <p className="milestone-desc">{m.desc}</p>
       <div className="milestone-status">{completed ? 'Completed' : 'Status'}</div>
@@ -225,20 +225,18 @@ export default function Expedition() {
   )
 }
 
-// Final reward badge — /public/badges/reward-locked.webp (silhouette) until 8/8,
-// then /public/badges/reward.webp (full art). Falls back to the ★ orb if missing.
+// Final reward badge — reward-idle.webp (silhouette) until 8/8, cross-fading to
+// reward-full.webp (full opaque emblem) once unlocked. Falls back to the ★ orb
+// if the art fails to load.
 function RewardBadge({ unlocked }) {
   const [failed, setFailed] = useState(false)
   if (failed) return <div className="reward-icon">★</div>
-  const src = unlocked ? '/badges/reward.webp' : '/badges/reward-locked.webp'
   return (
-    <img
-      src={src}
-      alt=""
-      className="reward-badge"
-      decoding="async"
-      onError={() => setFailed(true)}
-    />
+    <div className="reward-badge">
+      <img className="rb-idle" src="/badges/reward-idle.webp" alt="" decoding="async" onError={() => setFailed(true)} />
+      <img className="rb-hover" src="/badges/reward-hover.webp" alt="" decoding="async" />
+      <img className="rb-full" src="/badges/reward-full.webp" alt="" decoding="async" />
+    </div>
   )
 }
 
