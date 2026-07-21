@@ -92,7 +92,6 @@ export default function IdentityModal({ open, onClose }) {
               maxLength={60}
               value={draft.affiliation}
               onChange={onChange('affiliation')}
-              placeholder="Voyager's Haven, Everion Empire, Independent…"
             />
           </div>
 
