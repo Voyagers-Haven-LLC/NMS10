@@ -86,7 +86,6 @@ function Footer() {
       <div className="container footer-row">
         <span>© 2026 Voyager's Haven · Built for the NMS10 collaborative</span>
         <span>Banner &amp; logo: Nerozii &amp; Mr Sinister</span>
-        <span>v0.1 · live build</span>
       </div>
     </footer>
   )
